@@ -1,0 +1,70 @@
+import os
+import sys
+from typing import Optional
+
+import numpy as np
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from db import (
+    index_path_for,
+    get_connection,
+    get_all_embeddings_only,
+    resolve_db_path,
+    check_and_migrate_embeddings,
+)
+from llm_client import LLMClient
+from web.deps import AppState
+
+
+def build_state(db_path: Optional[str] = None) -> AppState:
+    """Build and return the shared AppState for the web layer.
+
+    Mirrors query.py main() lines 423-517 with no rich/stdin interaction.
+    Called once per process at lifespan startup.  Also callable directly
+    from test setUp so the full loader path is unit-testable.
+    """
+    resolved = resolve_db_path(db_path or os.getenv("DATABASE_PATH", "knowledge.db"))
+
+    # Construct LLMClient once.  check_and_run_setup() inside __init__ is a
+    # no-op when TESTING=true / PSYCHE_NONINTERACTIVE=1 / stdin is not a tty.
+    llm = LLMClient()
+
+    # Mirror query.py line 436: migrate embeddings if the configured model
+    # changed since last ingest.  Skipped automatically in non-interactive /
+    # testing environments by check_and_migrate_embeddings itself.
+    check_and_migrate_embeddings(resolved, llm)
+
+    # Preload search structures exactly as query.py lines 492-517.
+    chunk_ids = np.array([], dtype=np.int32)
+    embeddings_matrix = np.array([], dtype=np.float32)
+    usearch_index = None
+
+    if llm.provider != "none":
+        index_path = index_path_for(resolved)
+        try:
+            from usearch.index import Index  # type: ignore
+
+            if os.path.exists(index_path):
+                usearch_index = Index.restore(index_path)
+        except Exception:
+            usearch_index = None
+
+        if usearch_index is None:
+            conn = get_connection(resolved)
+            try:
+                records = get_all_embeddings_only(conn)
+            finally:
+                conn.close()
+            valid = [r for r in records if r["embedding"] is not None]
+            if valid:
+                chunk_ids = np.array([r["chunk_id"] for r in valid], dtype=np.int32)
+                embeddings_matrix = np.vstack([r["embedding"] for r in valid])
+
+    return AppState(
+        db_path=resolved,
+        llm=llm,
+        chunk_ids=chunk_ids,
+        embeddings_matrix=embeddings_matrix,
+        usearch_index=usearch_index,
+    )
