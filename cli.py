@@ -29,7 +29,7 @@ def main():
         os.environ["DATABASE_PATH"] = resolve_db_path(f"topic_{topic_name}.db")
 
     if len(sys.argv) < 2:
-        print("Usage: psyche [setup | ingest | query | chat | build-graph | guide | checkin | goal | experiment | log-metric | review | rules | compact-memory | connect | mem | start-mcp] [options]")
+        print("Usage: psyche [setup | ingest | query | chat | build-graph | guide | checkin | goal | experiment | log-metric | review | rules | compact-memory | connect | mem | start-mcp | web] [options]")
         sys.exit(1)
         
     subcommand = sys.argv[1].lower()
@@ -98,9 +98,12 @@ def main():
         except ImportError:
             print("Error: mcp-server subcommand is not fully implemented yet.")
             sys.exit(1)
+    elif subcommand == "web":
+        import web.server
+        web.server.main()
     else:
         print(f"Unknown command: {subcommand}")
-        print("Available commands: setup, ingest, query, chat, build-graph, guide, checkin, goal, experiment, log-metric, review, rules, compact-memory, connect, mem, start-mcp")
+        print("Available commands: setup, ingest, query, chat, build-graph, guide, checkin, goal, experiment, log-metric, review, rules, compact-memory, connect, mem, start-mcp, web")
         sys.exit(1)
 
 if __name__ == "__main__":
