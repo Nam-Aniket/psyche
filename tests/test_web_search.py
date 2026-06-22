@@ -78,5 +78,102 @@ class TestSearchEndpoint(WebTestCase):
             self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+class TestChatEndpoint(WebTestCase):
+    """Tests for POST /chat."""
+
+    def test_chat_returns_200(self):
+        resp = self.client.post("/chat", json={"query_text": "What is discipline?"})
+        self.assertEqual(resp.status_code, 200)
+
+    def test_chat_response_has_answer_key(self):
+        resp = self.client.post("/chat", json={"query_text": "What is discipline?"})
+        data = resp.json()
+        self.assertIn("answer", data)
+
+    def test_chat_response_has_sources_key(self):
+        resp = self.client.post("/chat", json={"query_text": "What is discipline?"})
+        data = resp.json()
+        self.assertIn("sources", data)
+
+    def test_chat_sources_is_list(self):
+        resp = self.client.post("/chat", json={"query_text": "What is discipline?"})
+        data = resp.json()
+        self.assertIsInstance(data["sources"], list)
+
+    def test_chat_answer_is_fake_answer(self):
+        # FakeLLM.generate_completion always returns "FAKE ANSWER"
+        resp = self.client.post("/chat", json={"query_text": "What is discipline?"})
+        data = resp.json()
+        self.assertEqual(data["answer"], "FAKE ANSWER")
+
+    def test_chat_sources_have_required_keys(self):
+        resp = self.client.post("/chat", json={"query_text": "discipline cosmos"})
+        data = resp.json()
+        sources = data["sources"]
+        self.assertTrue(len(sources) > 0)
+        for key in ("chunk_id", "text", "location", "source_title", "source_author", "score"):
+            self.assertIn(key, sources[0], f"Missing key in source: {key}")
+
+    def test_chat_source_scores_ordered_descending(self):
+        resp = self.client.post("/chat", json={"query_text": "discipline cosmos"})
+        sources = resp.json()["sources"]
+        if len(sources) > 1:
+            scores = [s["score"] for s in sources]
+            self.assertEqual(scores, sorted(scores, reverse=True))
+
+    def test_chat_limit_restricts_sources(self):
+        resp = self.client.post("/chat", json={"query_text": "life", "limit": 1})
+        sources = resp.json()["sources"]
+        self.assertLessEqual(len(sources), 1)
+
+    def test_chat_default_limit_is_five(self):
+        resp = self.client.post("/chat", json={"query_text": "life"})
+        sources = resp.json()["sources"]
+        self.assertLessEqual(len(sources), 5)
+
+    def test_chat_missing_query_returns_422(self):
+        resp = self.client.post("/chat", json={})
+        self.assertEqual(resp.status_code, 422)
+
+    def test_chat_empty_query_returns_400(self):
+        resp = self.client.post("/chat", json={"query_text": ""})
+        self.assertEqual(resp.status_code, 400)
+
+    def test_chat_returns_503_when_provider_is_none(self):
+        original_provider = self.state.llm.provider
+        original_chat_model = self.state.llm.chat_model
+        try:
+            self.state.llm.provider = "none"
+            self.state.llm.chat_model = "none"
+            resp = self.client.post("/chat", json={"query_text": "discipline"})
+            self.assertEqual(resp.status_code, 503)
+        finally:
+            self.state.llm.provider = original_provider
+            self.state.llm.chat_model = original_chat_model
+
+    def test_chat_returns_503_when_chat_model_is_none(self):
+        original_chat_model = self.state.llm.chat_model
+        try:
+            self.state.llm.chat_model = "none"
+            resp = self.client.post("/chat", json={"query_text": "discipline"})
+            self.assertEqual(resp.status_code, 503)
+        finally:
+            self.state.llm.chat_model = original_chat_model
+
+    def test_chat_503_detail_mentions_provider(self):
+        original_provider = self.state.llm.provider
+        original_chat_model = self.state.llm.chat_model
+        try:
+            self.state.llm.provider = "none"
+            self.state.llm.chat_model = "none"
+            resp = self.client.post("/chat", json={"query_text": "discipline"})
+            data = resp.json()
+            self.assertIn("detail", data)
+            self.assertIsInstance(data["detail"], str)
+        finally:
+            self.state.llm.provider = original_provider
+            self.state.llm.chat_model = original_chat_model
+
+
 if __name__ == "__main__":
     unittest.main()
