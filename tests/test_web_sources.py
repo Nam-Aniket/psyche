@@ -41,5 +41,36 @@ class TestGetSources(WebTestCase):
                 self.assertIn(key, src)
 
 
+class TestIngestStatus(WebTestCase):
+    """GET /ingest/status?checksum=<sha256> — dedup check."""
+
+    def test_status_known_checksum_found(self):
+        # "ck_med" is the checksum seeded for Meditations in WebTestCase.setUp
+        resp = self.client.get("/ingest/status", params={"checksum": "ck_med"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["already_ingested"])
+        self.assertIsNotNone(data["source_id"])
+        self.assertIsInstance(data["source_id"], int)
+
+    def test_status_unknown_checksum_not_found(self):
+        resp = self.client.get("/ingest/status", params={"checksum": "deadbeefdeadbeef"})
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertFalse(data["already_ingested"])
+        self.assertIsNone(data["source_id"])
+
+    def test_status_missing_checksum_returns_422(self):
+        # FastAPI validates query param presence; no checksum -> 422 Unprocessable Entity
+        resp = self.client.get("/ingest/status")
+        self.assertEqual(resp.status_code, 422)
+
+    def test_status_has_required_keys(self):
+        resp = self.client.get("/ingest/status", params={"checksum": "ck_let"})
+        data = resp.json()
+        self.assertIn("already_ingested", data)
+        self.assertIn("source_id", data)
+
+
 if __name__ == "__main__":
     unittest.main()

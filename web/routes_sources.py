@@ -45,3 +45,25 @@ def list_sources(request: Request):
         return result
     finally:
         conn.close()
+
+
+# ── Response model for dedup check ────────────────────────────────────────────
+
+class IngestStatusResponse(BaseModel):
+    already_ingested: bool
+    source_id: Optional[int]
+
+
+# ── GET /ingest/status ─────────────────────────────────────────────────────────
+
+@router.get("/ingest/status", response_model=IngestStatusResponse)
+def ingest_status(checksum: str, request: Request):
+    """Checks whether a file with this SHA-256 checksum has already been ingested."""
+    st = get_state(request)
+    conn = get_connection(st.db_path)
+    try:
+        from db import check_checksum
+        sid = check_checksum(conn, checksum)
+        return IngestStatusResponse(already_ingested=sid is not None, source_id=sid)
+    finally:
+        conn.close()
