@@ -67,3 +67,106 @@ def ingest_status(checksum: str, request: Request):
         return IngestStatusResponse(already_ingested=sid is not None, source_id=sid)
     finally:
         conn.close()
+
+
+# ── Request / Response models for ingest ──────────────────────────────────────
+
+class IngestRequest(BaseModel):
+    path: str
+    title: Optional[str] = None
+    author: Optional[str] = None
+    force: bool = False
+
+
+class IngestResponse(BaseModel):
+    source_id: int
+    chunk_count: int
+    skipped: bool
+
+
+# ── POST /ingest ───────────────────────────────────────────────────────────────
+
+@router.post("/ingest", response_model=IngestResponse)
+def ingest_file(body: IngestRequest, request: Request):
+    """Ingest a server-side file by absolute path.
+
+    Steps mirror ingest.py main() but without rich/Console/sys.exit.
+    After writing to SQLite the on-disk usearch index is rebuilt; the
+    in-memory st.chunk_ids / st.embeddings_matrix are NOT refreshed —
+    a process restart (or re-hit to the state loader) is required for
+    newly ingested content to appear in search results.
+    """
+    from ingest import calculate_sha256, chunk_text, clean_title_from_filename
+    from parsers import extract_text
+    from db import (
+        get_connection as _get_conn,
+        check_checksum,
+        add_source,
+        add_chunk,
+        add_embedding,
+        build_or_update_usearch_index,
+        remove_source,
+    )
+
+    st = get_state(request)
+    path = body.path
+
+    # ── 1. File existence / extension ────────────────────────────────────────
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    try:
+        blocks = extract_text(path)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except ValueError as exc:
+        # Unsupported extension
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if not blocks:
+        raise HTTPException(status_code=400, detail="No text could be extracted from the file.")
+
+    # ── 2. Checksum / dedup ───────────────────────────────────────────────────
+    checksum = calculate_sha256(path)
+    conn = _get_conn(st.db_path)
+    try:
+        existing_id = check_checksum(conn, checksum)
+        if existing_id is not None and not body.force:
+            return IngestResponse(source_id=existing_id, chunk_count=0, skipped=True)
+
+        if existing_id is not None and body.force:
+            remove_source(conn, existing_id, db_path=st.db_path)
+
+        # ── 3. Chunk ──────────────────────────────────────────────────────────
+        chunks = []
+        for block in blocks:
+            for c in chunk_text(block["text"]):
+                chunks.append({"text": c, "location": block["location"]})
+
+        if not chunks:
+            raise HTTPException(status_code=400, detail="No text chunks created — content too short.")
+
+        # ── 4. Embeddings (skipped when provider == 'none') ───────────────────
+        embeddings = []
+        if st.llm.provider not in ("none",):
+            try:
+                embeddings = st.llm.get_embeddings_batch([c["text"] for c in chunks])
+            except Exception as exc:
+                raise HTTPException(status_code=502, detail=f"Embedding generation failed: {exc}")
+
+        # ── 5. Persist ────────────────────────────────────────────────────────
+        title = body.title or clean_title_from_filename(path)
+        author = body.author or "Unknown"
+
+        source_id = add_source(conn, title, author, path, checksum)
+        for idx, chunk_data in enumerate(chunks):
+            cid = add_chunk(conn, source_id, idx, chunk_data["text"], location=chunk_data["location"])
+            if embeddings:
+                add_embedding(conn, cid, embeddings[idx])
+    finally:
+        conn.close()
+
+    # ── 6. Rebuild on-disk index (process restart needed to refresh in-memory state) ─
+    build_or_update_usearch_index(st.db_path)
+
+    return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
