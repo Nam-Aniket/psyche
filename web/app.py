@@ -36,12 +36,10 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok"}
 
-    # --- router registrations (alphabetical; parallel authors append here) ---
-    # from web import routes_graph, routes_search, routes_sources, routes_system
-    # app.include_router(routes_graph.router)
-    # app.include_router(routes_search.router)
-    # app.include_router(routes_sources.router)
-    # app.include_router(routes_system.router)
+    # --- router registrations (alphabetical; one include_router line per router) ---
+    from web import routes_sources
+
+    app.include_router(routes_sources.router)
 
     return app
 
