@@ -154,5 +154,64 @@ class TestPostIngestLocalPath(WebTestCase):
         self.assertEqual(resp.status_code, 400)
 
 
+class TestPostIngestUpload(WebTestCase):
+    """POST /ingest/upload — multipart UploadFile path."""
+
+    def test_upload_txt_returns_200(self):
+        content = b"Every moment think steadily as a Roman. " * 40
+        resp = self.client.post(
+            "/ingest/upload",
+            files={"file": ("stoic.txt", content, "text/plain")},
+        )
+        self.assertEqual(resp.status_code, 200)
+
+    def test_upload_returns_source_id_and_chunk_count(self):
+        content = b"He who fears death will never do anything worthy of a living man. " * 40
+        resp = self.client.post(
+            "/ingest/upload",
+            files={"file": ("seneca.txt", content, "text/plain")},
+        )
+        data = resp.json()
+        self.assertIn("source_id", data)
+        self.assertIn("chunk_count", data)
+        self.assertIn("skipped", data)
+        self.assertGreater(data["chunk_count"], 0)
+        self.assertFalse(data["skipped"])
+
+    def test_upload_same_content_twice_skips_second(self):
+        content = b"Loss is nothing else but change. " * 40
+        resp1 = self.client.post(
+            "/ingest/upload",
+            files={"file": ("marcus1.txt", content, "text/plain")},
+        )
+        self.assertEqual(resp1.status_code, 200)
+        resp2 = self.client.post(
+            "/ingest/upload",
+            files={"file": ("marcus2.txt", content, "text/plain")},
+        )
+        self.assertEqual(resp2.status_code, 200)
+        self.assertTrue(resp2.json()["skipped"])
+
+    def test_upload_unsupported_ext_returns_400(self):
+        resp = self.client.post(
+            "/ingest/upload",
+            files={"file": ("data.xyz", b"bytes", "application/octet-stream")},
+        )
+        self.assertEqual(resp.status_code, 400)
+
+    def test_upload_title_and_author_form_fields(self):
+        content = b"The obstacle is the way. " * 40
+        resp = self.client.post(
+            "/ingest/upload",
+            files={"file": ("obstacle.txt", content, "text/plain")},
+            data={"title": "Obstacle Book", "author": "Ryan Holiday"},
+        )
+        self.assertEqual(resp.status_code, 200)
+        sources = self.client.get("/sources").json()
+        match = next((s for s in sources if s["title"] == "Obstacle Book"), None)
+        self.assertIsNotNone(match)
+        self.assertEqual(match["author"], "Ryan Holiday")
+
+
 if __name__ == "__main__":
     unittest.main()

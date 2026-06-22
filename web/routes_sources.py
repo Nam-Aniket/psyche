@@ -3,7 +3,7 @@ import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, File, Form, UploadFile
 from pydantic import BaseModel
 from typing import Optional, List
 
@@ -170,3 +170,102 @@ def ingest_file(body: IngestRequest, request: Request):
     build_or_update_usearch_index(st.db_path)
 
     return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
+
+
+# ── POST /ingest/upload ────────────────────────────────────────────────────────
+
+@router.post("/ingest/upload", response_model=IngestResponse)
+async def ingest_upload(
+    request: Request,
+    file: UploadFile = File(...),
+    title: Optional[str] = Form(None),
+    author: Optional[str] = Form(None),
+    force: bool = Form(False),
+):
+    """Ingest a file sent as a multipart upload.
+
+    The uploaded bytes are written to a temp file, then the same pipeline
+    as POST /ingest runs, and the temp file is cleaned up afterwards.
+
+    Note: title/author/force are declared with Form() so they bind from
+    multipart form fields (a plain default would make them query params).
+    """
+    import tempfile as _tempfile
+    from ingest import calculate_sha256, chunk_text, clean_title_from_filename
+    from parsers import extract_text
+    from db import (
+        get_connection as _get_conn,
+        check_checksum,
+        add_source,
+        add_chunk,
+        add_embedding,
+        build_or_update_usearch_index,
+        remove_source,
+    )
+
+    original_filename = file.filename or "upload.txt"
+    ext = os.path.splitext(original_filename)[1].lower()
+    if not ext:
+        ext = ".txt"
+
+    # Write upload to a named temp file so extract_text (which needs a path) works.
+    with _tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+        tmp_path = tmp.name
+        content = await file.read()
+        tmp.write(content)
+
+    try:
+        st = get_state(request)
+
+        try:
+            blocks = extract_text(tmp_path)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+
+        if not blocks:
+            raise HTTPException(status_code=400, detail="No text could be extracted from the uploaded file.")
+
+        checksum = calculate_sha256(tmp_path)
+        conn = _get_conn(st.db_path)
+        try:
+            existing_id = check_checksum(conn, checksum)
+            if existing_id is not None and not force:
+                return IngestResponse(source_id=existing_id, chunk_count=0, skipped=True)
+
+            if existing_id is not None and force:
+                remove_source(conn, existing_id, db_path=st.db_path)
+
+            chunks = []
+            for block in blocks:
+                for c in chunk_text(block["text"]):
+                    chunks.append({"text": c, "location": block["location"]})
+
+            if not chunks:
+                raise HTTPException(status_code=400, detail="No text chunks created — content too short.")
+
+            embeddings = []
+            if st.llm.provider not in ("none",):
+                try:
+                    embeddings = st.llm.get_embeddings_batch([c["text"] for c in chunks])
+                except Exception as exc:
+                    raise HTTPException(status_code=502, detail=f"Embedding generation failed: {exc}")
+
+            resolved_title = title or clean_title_from_filename(original_filename)
+            resolved_author = author or "Unknown"
+
+            source_id = add_source(conn, resolved_title, resolved_author, original_filename, checksum)
+            for idx, chunk_data in enumerate(chunks):
+                cid = add_chunk(conn, source_id, idx, chunk_data["text"], location=chunk_data["location"])
+                if embeddings:
+                    add_embedding(conn, cid, embeddings[idx])
+        finally:
+            conn.close()
+
+        build_or_update_usearch_index(st.db_path)
+        return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
+
+    finally:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
