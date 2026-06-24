@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from web.deps import get_state
-from db import get_connection
+from db import get_connection, remove_source
 
 router = APIRouter()
 
@@ -43,6 +43,44 @@ def list_sources(request: Request):
                 SourceRecord(id=src_id, title=title, author=author, chunk_count=count)
             )
         return result
+    finally:
+        conn.close()
+
+
+# ── DELETE /sources/{source_id} and DELETE /sources ─────────────────────────────
+
+class DeleteResponse(BaseModel):
+    deleted: int
+
+
+@router.delete("/sources/{source_id}", response_model=DeleteResponse)
+def delete_source(source_id: int, request: Request):
+    """Removes a single source and its chunks, FTS rows, and vector-index keys."""
+    st = get_state(request)
+    conn = get_connection(st.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM sources WHERE id = ?", (source_id,))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
+        remove_source(conn, source_id, db_path=st.db_path)
+        return DeleteResponse(deleted=1)
+    finally:
+        conn.close()
+
+
+@router.delete("/sources", response_model=DeleteResponse)
+def clear_sources(request: Request):
+    """Removes every source from the knowledge base."""
+    st = get_state(request)
+    conn = get_connection(st.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM sources")
+        ids = [row[0] for row in cur.fetchall()]
+        for sid in ids:
+            remove_source(conn, sid, db_path=st.db_path)
+        return DeleteResponse(deleted=len(ids))
     finally:
         conn.close()
 

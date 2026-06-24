@@ -54,5 +54,9 @@ requires-python = ">=3.9"
 psyche = "cli:main"
 
 [tool.setuptools]
-py-modules = ["cli", "db", "parsers", "ingest", "query", "llm_client", "build_graph", "mcp_server", "guidance"]
+py-modules = ["cli", "db", "parsers", "ingest", "query", "llm_client", "build_graph", "mcp_server", "guidance", "connect", "memzero", "mem_cli", "plan_schema", "setup_cmd", "synthesis", "transcript_usage"]
 packages = ["web"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+web = ["static/**/*", "static/*"]

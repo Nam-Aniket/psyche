@@ -6,16 +6,32 @@ protocol into a supported client's config files.
 import json
 import os
 import shutil
+import sys
 
 # Repo root resolved at import time so tests can monkeypatch HOME safely
 _REPO = os.path.dirname(os.path.abspath(__file__))
-_VENV_PYTHON = os.path.join(_REPO, ".venv", "bin", "python")
+# Prefer the project venv's interpreter; fall back to the running interpreter
+# (pip/global installs have no .venv, and Windows uses Scripts/python.exe).
+_VENV_BIN = (
+    os.path.join(_REPO, ".venv", "Scripts", "python.exe")
+    if os.name == "nt"
+    else os.path.join(_REPO, ".venv", "bin", "python")
+)
+_VENV_PYTHON = _VENV_BIN if os.path.exists(_VENV_BIN) else sys.executable
 _CLI = os.path.join(_REPO, "cli.py")
 
 _MCP_ENTRY = {
     "command": _VENV_PYTHON,
     "args": [_CLI, "start-mcp"],
 }
+
+_DEFAULT_PROTOCOL = (
+    "## Psyche memory protocol\n"
+    "Before starting a task, call `search_memories` for relevant durable facts.\n"
+    "When you learn a durable preference, decision, or lesson, call `add_memory` "
+    "with one self-contained sentence. Use `search_knowledge` to consult the user's "
+    "indexed books and notes, and `retrieve_graph` for concept relationships."
+)
 
 _PROTOCOL_BLOCK = None  # loaded lazily
 
@@ -24,11 +40,15 @@ def _get_protocol_block() -> str:
     global _PROTOCOL_BLOCK
     if _PROTOCOL_BLOCK is None:
         proto_path = os.path.join(_REPO, "docs", "memory-protocol.md")
-        with open(proto_path, "r", encoding="utf-8") as f:
-            content = f.read()
-        # Extract the block after the first "---" separator
-        parts = content.split("---", 1)
-        _PROTOCOL_BLOCK = parts[1].strip() if len(parts) > 1 else content.strip()
+        try:
+            with open(proto_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            # Extract the block after the first "---" separator
+            parts = content.split("---", 1)
+            _PROTOCOL_BLOCK = parts[1].strip() if len(parts) > 1 else content.strip()
+        except FileNotFoundError:
+            # docs/ may not ship with every install; degrade gracefully.
+            _PROTOCOL_BLOCK = _DEFAULT_PROTOCOL
     return _PROTOCOL_BLOCK
 
 
@@ -47,8 +67,14 @@ def _merge_json_mcp(path: str, entry: dict, dry_run: bool = False) -> str | None
     Creates the file (and parent dirs) if absent.
     Returns action string if a write was/would be performed, else None."""
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Could not parse {path}: {exc}. Fix or remove that file and retry "
+                f"(a '{path}.psyche-bak' backup may already exist)."
+            )
     else:
         data = {}
 
@@ -135,7 +161,10 @@ def connect(client: str, dry_run: bool = False) -> list[str]:
             with open(config_path, "r", encoding="utf-8") as f:
                 existing_content = f.read()
 
-        if marker not in existing_content:
+        # Skip if our marker OR a bare [mcp_servers.psyche] table already exists
+        # (the npm postinstaller writes the bare table) — appending a second one
+        # corrupts the TOML.
+        if marker not in existing_content and "[mcp_servers.psyche]" not in existing_content:
             if not dry_run:
                 os.makedirs(os.path.dirname(config_path) or ".", exist_ok=True)
                 with open(config_path, "a", encoding="utf-8") as f:
