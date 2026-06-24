@@ -84,6 +84,7 @@
 
   const root = document.getElementById('root');
   const dark = () => state.theme === 'dark';
+  const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
   function setTheme(t) {
     state.theme = t;
@@ -93,7 +94,7 @@
     if (graph) graph.refreshTheme();
   }
   function toast(msg, isError) {
-    const t = h('div', { class: 'toast' + (isError ? ' is-error' : '') }, msg);
+    const t = h('div', { class: 'toast' + (isError ? ' is-error' : ''), role: 'status', 'aria-live': 'polite' }, msg);
     document.body.appendChild(t);
     setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, 2600);
   }
@@ -205,13 +206,13 @@
   function brand(small) {
     return h('button', { class: 'brand', onClick: () => go('landing') }, h('div', { class: 'brand__mark' }), h('span', { class: 'brand__name', style: small ? 'font-size:20px' : '' }, 'Psyche'));
   }
-  function themeBtn() { const b = h('button', { class: 'btn btn--icon', title: 'Toggle theme', onClick: () => setTheme(dark() ? 'light' : 'dark') }); b.appendChild(themeIcon()); return b; }
+  function themeBtn() { const b = h('button', { class: 'btn btn--icon', title: 'Toggle theme', 'aria-label': 'Toggle light or dark theme', onClick: () => setTheme(dark() ? 'light' : 'dark') }); b.appendChild(themeIcon()); return b; }
 
   // ── App shell: top tab bar + single screen ──────────────────────────────────
   function App() {
     const wrap = h('div', { class: 'app' });
-    const tabs = h('div', { class: 'tabs' }, h('div', { class: 'tab-pill', id: 'tab-pill' }));
-    SCREENS.forEach((key) => tabs.appendChild(h('button', { class: 'tab', id: 'tab-' + key, onClick: () => showScreen(key, true) }, navIconFor(key), SCREEN_META[key].tab)));
+    const tabs = h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Sections' }, h('div', { class: 'tab-pill', id: 'tab-pill' }));
+    SCREENS.forEach((key) => tabs.appendChild(h('button', { class: 'tab', id: 'tab-' + key, role: 'tab', 'aria-selected': 'false', onClick: () => showScreen(key, true) }, navIconFor(key), SCREEN_META[key].tab)));
     const appbar = h('div', { class: 'appbar' },
       h('div', { class: 'appbar__brand' }, brand(true)),
       tabs,
@@ -244,7 +245,7 @@
     const dir = SCREENS.indexOf(key) >= SCREENS.indexOf(currentScreen || 'setup') ? 'down' : 'up';
     if (currentScreen === 'graph' && graph) { graph.dispose(); graph = null; }
     currentScreen = key;
-    SCREENS.forEach((k) => { const t = document.getElementById('tab-' + k); if (t) t.classList.toggle('is-active', k === key); });
+    SCREENS.forEach((k) => { const t = document.getElementById('tab-' + k); if (t) { const on = k === key; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); } });
     const node = buildScreen(key);
     if (animate !== false) node.classList.add(dir === 'down' ? 'ps-dir-down' : 'ps-dir-up');
     host.replaceChildren(node);
@@ -300,7 +301,9 @@
   }
   function pathOption(p) {
     const on = state.llmPath === p.id;
-    return h('div', { class: 'path-option' + (on ? ' is-selected' : ''), onClick: () => { state.llmPath = p.id; drawSetup(); } },
+    return h('div', { class: 'path-option' + (on ? ' is-selected' : ''), role: 'radio', 'aria-checked': on ? 'true' : 'false', tabindex: '0',
+      onClick: () => { state.llmPath = p.id; drawSetup(); },
+      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.llmPath = p.id; drawSetup(); } } },
       h('span', { class: 'path-radio' }),
       h('span', { style: 'flex:1' },
         h('span', { style: 'display:flex;align-items:center;gap:10px' }, h('span', { class: 'path-option__name' }, p.name), h('span', { class: 'path-option__tag' }, p.tag)),
@@ -358,7 +361,9 @@
             h('button', { class: 'btn btn--danger', onClick: doClear }, 'Clear all'))
         : h('button', { class: 'btn btn--soft', style: 'font-size:13.5px;padding:9px 15px;color:var(--muted)', onClick: () => { confirmClear = true; refreshCurrent(); } }, 'Clear all')) : null);
 
-    const dz = h('div', { class: 'dropzone', onClick: openBrowse,
+    const dz = h('div', { class: 'dropzone', role: 'button', tabindex: '0', 'aria-label': 'Add documents: drag files here or activate to browse',
+      onClick: openBrowse,
+      onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openBrowse(e); } },
       onDragover: (e) => { e.preventDefault(); dz.classList.add('is-drag'); },
       onDragleave: (e) => { e.preventDefault(); dz.classList.remove('is-drag'); },
       onDrop: (e) => { e.preventDefault(); dz.classList.remove('is-drag'); handleFiles(e.dataTransfer && e.dataTransfer.files); } },
@@ -397,7 +402,7 @@
         ? h('span', { class: 'confirm-row' },
             h('button', { class: 'btn btn--soft', style: 'font-size:12.5px;padding:6px 11px', onClick: () => { confirmRemove = null; refreshCurrent(); } }, 'Cancel'),
             h('button', { class: 'btn btn--danger', style: 'font-size:12.5px;padding:6px 12px', onClick: () => doRemove(src.id) }, 'Remove'))
-        : h('button', { class: 'btn btn--icon', style: 'width:28px;height:28px', title: 'Remove', onClick: () => { confirmRemove = src.id; refreshCurrent(); } }, icon(ICONS.close, 14, 2)),
+        : h('button', { class: 'btn btn--icon', style: 'width:28px;height:28px', title: 'Remove', 'aria-label': 'Remove ' + src.title, onClick: () => { confirmRemove = src.id; refreshCurrent(); } }, icon(ICONS.close, 14, 2)),
     );
   }
   function ingestRow(f) {
@@ -408,7 +413,7 @@
   }
   function openBrowse(e) {
     if (e && e.stopPropagation) e.stopPropagation();
-    if (!fileInput) { fileInput = h('input', { type: 'file', multiple: true, style: 'display:none', onChange: () => { handleFiles(fileInput.files); fileInput.value = ''; } }); document.body.appendChild(fileInput); }
+    if (!fileInput) { fileInput = h('input', { type: 'file', multiple: true, accept: '.pdf,.epub,.md,.markdown,.docx,.txt,.org,.html', style: 'display:none', onChange: () => { handleFiles(fileInput.files); fileInput.value = ''; } }); document.body.appendChild(fileInput); }
     fileInput.click();
   }
   async function handleFiles(files) {
@@ -450,7 +455,7 @@
       return screen;
     }
     const controls = h('div', { class: 'graph-controls' });
-    controls.appendChild(h('button', { class: 'btn btn--soft', style: 'font-size:13px;padding:8px 13px', title: 'Re-extract concepts from your sources', onClick: (e) => rebuildGraph(e.currentTarget) }, icon(ICONS.refresh, 15, 2), 'Rebuild'));
+    controls.appendChild(h('button', { class: 'btn btn--soft', style: 'font-size:13px;padding:8px 13px', title: 'Re-extract concepts from your sources', 'aria-label': 'Rebuild the concept graph', onClick: (e) => rebuildGraph(e.currentTarget) }, icon(ICONS.refresh, 15, 2), 'Rebuild'));
     head.appendChild(controls);
     const body = h('div', { class: 'graph-body' });
     screen.append(head, body);
@@ -538,10 +543,15 @@
 
     const view = { theta: 0, phi: -0.34, zoom: 1, take: 'organic', hover: null, sel: null };
     let drag = null, lastMoved = false, raf = null, ro = null;
+    // living-graph state: staggered entrance, idle breathing, drag inertia
+    const REDUCE = reduceMotion();
+    const ENGINE_T0 = performance.now();
+    let spinVel = 0, velTheta = 0;
+    const seedOf = {}; concepts.forEach((c, i) => { seedOf[c.id] = { s: i * 2.39996, delay: i * 16 }; });
 
     const zoomGroup = h('div', { class: 'ctl-group' },
-      h('button', { class: 'btn btn--icon', title: 'Zoom out', onClick: () => { view.zoom = Math.max(0.55, view.zoom / 1.18); } }, '−'),
-      h('button', { class: 'btn btn--icon', title: 'Zoom in', onClick: () => { view.zoom = Math.min(2.4, view.zoom * 1.18); } }, '+'));
+      h('button', { class: 'btn btn--icon', title: 'Zoom out', 'aria-label': 'Zoom out', onClick: () => { view.zoom = Math.max(0.55, view.zoom / 1.18); } }, '−'),
+      h('button', { class: 'btn btn--icon', title: 'Zoom in', 'aria-label': 'Zoom in', onClick: () => { view.zoom = Math.min(2.4, view.zoom * 1.18); } }, '+'));
     const segOrganic = h('button', { class: 'btn btn--seg is-active', onClick: () => setTake('organic') }, 'Organic');
     const segRadial = h('button', { class: 'btn btn--seg', onClick: () => setTake('radial') }, 'Radial');
     controlsEl.append(zoomGroup, h('div', { class: 'ctl-group' }, segOrganic, segRadial));
@@ -623,13 +633,28 @@
     const tooltipEl = h('div', { class: 'graph-tooltip', style: 'display:none' }); overlay.appendChild(tooltipEl);
 
     function frame() {
-      const proj = {}; concepts.forEach((c) => (proj[c.id] = project(base[c.id])));
+      const now = performance.now();
+      const breathe = !REDUCE && !drag;
+      const jbase = (c) => {
+        const b = base[c.id];
+        if (!breathe) return b;
+        const sd = seedOf[c.id].s, amp = 4.5;
+        return [b[0] + Math.sin(now * 0.0006 + sd) * amp, b[1] + Math.cos(now * 0.00052 + sd) * amp, b[2] + Math.sin(now * 0.0007 + sd * 1.3) * amp];
+      };
+      const entOf = (c) => { if (REDUCE) return 1; const e = (now - ENGINE_T0 - seedOf[c.id].delay) / 620; return e <= 0 ? 0 : e >= 1 ? 1 : 1 - Math.pow(1 - e, 3); };
+      const proj = {}; concepts.forEach((c) => (proj[c.id] = project(jbase(c))));
       const zs = concepts.map((c) => proj[c.id].z), zmin = Math.min(...zs), zmax = Math.max(...zs), zr = (zmax - zmin) || 1;
       const dT = (z) => (z - zmin) / zr;
       const gm = gMap(), toPx = (vx, vy) => ({ left: gm.ox + vx * gm.sc, top: gm.oy + vy * gm.sc });
       const focusId = view.hover || view.sel, nb = focusId ? neighbors(focusId) : {};
 
       edgeEls.map((e) => ({ e, z: (proj[e.l.s].z + proj[e.l.t].z) / 2 })).sort((a, b) => a.z - b.z).forEach((o) => edgeLayer.appendChild(o.e.path));
+      // cap on-focus edge labels to the strongest few so high-degree nodes don't flood the canvas
+      let labelSet = null;
+      if (focusId && showEdgeLabels) {
+        labelSet = new Set(edgeEls.filter((e) => e.l.s === focusId || e.l.t === focusId)
+          .sort((a, b) => b.l.strength - a.l.strength).slice(0, 6).map((e) => e.i));
+      }
       edgeEls.forEach(({ path, l, i }) => {
         const a = proj[l.s], b = proj[l.t];
         const active = focusId && (l.s === focusId || l.t === focusId), dimmed = focusId && !active;
@@ -641,19 +666,22 @@
         path.setAttribute('stroke-width', ((active ? bw + 0.7 : bw) * ((a.s + b.s) / 2)).toFixed(2));
         path.setAttribute('stroke-dasharray', str <= 2 ? '2.5 4.5' : 'none');
         path.setAttribute('opacity', (dimmed ? 0.05 : (active ? 0.92 : Math.min(0.16, (0.05 + 0.028 * str) * (0.6 + 0.5 * t)))).toFixed(3));
-        if (showEdgeLabels) { const lbl = edgeLabelEls[i]; if (active) { const px = toPx(cx, cy); lbl.style.display = 'block'; lbl.style.opacity = '1'; lbl.style.left = px.left.toFixed(1) + 'px'; lbl.style.top = px.top.toFixed(1) + 'px'; } else { lbl.style.opacity = '0'; lbl.style.display = 'none'; } }
+        if (showEdgeLabels) { const lbl = edgeLabelEls[i]; if (active && labelSet && labelSet.has(i)) { const px = toPx(cx, cy); lbl.style.display = 'block'; lbl.style.opacity = '1'; lbl.style.left = px.left.toFixed(1) + 'px'; lbl.style.top = px.top.toFixed(1) + 'px'; } else { lbl.style.opacity = '0'; lbl.style.display = 'none'; } }
       });
 
       const labelFont = Math.max(9.5, 12 * gm.sc).toFixed(1) + 'px';
       [...concepts].sort((a, b) => proj[a.id].z - proj[b.id].z).forEach((c) => {
         const els = nodeEls[c.id]; nodeLayer.appendChild(els.g);
         const p = proj[c.id], deg = degree(c.id), isSel = c.id === view.sel, isFocus = c.id === focusId, isNb = c.id in nb, t = dT(p.z);
+        const ent = entOf(c);
         let op = 0.55 + 0.45 * t; if (focusId) op = (isFocus || isNb) ? (0.82 + 0.18 * t) : 0.12;
-        const r = Math.max(5, (10 + Math.min(deg, 6) * 1.9 + (isSel ? 4 : 0) + (isFocus && !isSel ? 2.5 : 0)) * p.s);
+        op *= ent;
+        const r = Math.max(0.5, (10 + Math.min(deg, 6) * 1.9 + (isSel ? 4 : 0) + (isFocus && !isSel ? 2.5 : 0)) * p.s * (0.25 + 0.75 * ent));
         els.g.setAttribute('opacity', op.toFixed(2));
         els.hit.setAttribute('cx', p.sx.toFixed(1)); els.hit.setAttribute('cy', p.sy.toFixed(1)); els.hit.setAttribute('r', (r + 9).toFixed(1));
         els.dot.setAttribute('cx', p.sx.toFixed(1)); els.dot.setAttribute('cy', p.sy.toFixed(1)); els.dot.setAttribute('r', r.toFixed(1));
         els.dot.setAttribute('stroke-width', (isSel ? 2.6 : isFocus ? 2 : 1).toFixed(1));
+        els.dot.style.filter = isFocus ? `drop-shadow(0 0 ${(5 * gm.sc).toFixed(1)}px ${strokeForHue(hueForId(c.id))})` : '';
         const lbl = labelEls[c.id], lp = toPx(p.sx, p.sy + r + 11);
         const show = focusId ? (isFocus || isNb) : topSet.has(c.id);
         const lop = focusId ? (isFocus || isNb ? 1 : 0) : (topSet.has(c.id) ? (0.5 + 0.5 * t) : 0);
@@ -715,18 +743,23 @@
         h('span', { class: 'conn-card__strength' }, bars, h('span', { class: 'conn-card__strlabel' }, cn.str >= 4 ? 'strong' : cn.str >= 3 ? 'medium' : 'weak')));
     }
 
-    svg.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, th: view.theta, ph: view.phi, moved: false }; svg.classList.add('is-grabbing'); });
+    svg.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, th: view.theta, ph: view.phi, moved: false }; spinVel = 0; velTheta = 0; svg.classList.add('is-grabbing'); });
     window.addEventListener('mousemove', onMove);
-    function onMove(e) { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; view.theta = drag.th + dx * 0.008; view.phi = Math.max(-1.15, Math.min(1.15, drag.ph - dy * 0.006)); }
+    function onMove(e) { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; const nt = drag.th + dx * 0.008; velTheta = nt - view.theta; view.theta = nt; view.phi = Math.max(-1.15, Math.min(1.15, drag.ph - dy * 0.006)); }
     window.addEventListener('mouseup', onUp);
-    function onUp() { if (drag) { lastMoved = drag.moved; drag = null; svg.classList.remove('is-grabbing'); } }
+    function onUp() { if (drag) { lastMoved = drag.moved; spinVel = REDUCE ? 0 : Math.max(-0.06, Math.min(0.06, velTheta)); drag = null; svg.classList.remove('is-grabbing'); } }
     svg.addEventListener('click', () => { if (lastMoved) { lastMoved = false; return; } if (view.sel) { view.sel = null; renderPanel(); } });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom = Math.max(0.55, Math.min(2.4, view.zoom * (e.deltaY > 0 ? 0.92 : 1.08))); }, { passive: false });
 
     let skip = 0;
     function loop() {
       raf = requestAnimationFrame(loop);
-      if (currentScreen === 'graph' && !drag && !view.hover) { skip++; if (skip % 2 === 0) view.theta += view.take === 'radial' ? 0.0038 : 0.006; }
+      const idle = currentScreen === 'graph' && !drag && !view.hover;
+      if (Math.abs(spinVel) > 0.0002) {
+        view.theta += spinVel; spinVel *= 0.94;            // drag-release inertia, decays
+      } else if (idle && !REDUCE) {
+        spinVel = 0; skip++; if (skip % 2 === 0) view.theta += view.take === 'radial' ? 0.0038 : 0.006;
+      }
       frame();
     }
     ro = new ResizeObserver(() => frame()); ro.observe(canvas);
@@ -747,10 +780,10 @@
     screen.appendChild(h('div', { class: 'chat-scroll', id: 'chat-scroll' }, chatStreamEl));
     const suggestions = ['What is in my library?', 'Summarize the key ideas.', 'What connects these concepts?'];
     const suggestRow = h('div', { class: 'suggest-row', id: 'suggest-row' }, suggestions.map((t) => h('button', { class: 'btn btn--chip', onClick: () => sendChat(t) }, t)));
-    chatInputEl = h('input', { placeholder: 'Ask anything about your documents…', onKeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
+    chatInputEl = h('input', { placeholder: 'Ask anything about your documents…', 'aria-label': 'Ask a question about your documents', onKeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
     screen.appendChild(h('div', { class: 'chat-foot' }, h('div', { class: 'chat-narrow' },
       suggestRow,
-      h('div', { class: 'chat-input-bar' }, chatInputEl, h('button', { class: 'chat-send', onClick: () => sendChat() }, icon(ICONS.arrow, 19, 2.1))),
+      h('div', { class: 'chat-input-bar' }, chatInputEl, h('button', { class: 'chat-send', 'aria-label': 'Send message', onClick: () => sendChat() }, icon(ICONS.arrow, 19, 2.1))),
       h('div', { class: 'chat-disclaimer' }, 'Answers are grounded only in your indexed sources · nothing leaves this machine'))));
     drawChat();
     return screen;
