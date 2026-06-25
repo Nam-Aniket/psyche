@@ -572,7 +572,11 @@
       h('button', { class: 'btn btn--icon', title: 'Zoom in', 'aria-label': 'Zoom in', onClick: () => { view.zoom = Math.min(2.4, view.zoom * 1.18); } }, '+'));
     const segOrganic = h('button', { class: 'btn btn--seg is-active', onClick: () => setTake('organic') }, 'Organic');
     const segRadial = h('button', { class: 'btn btn--seg', onClick: () => setTake('radial') }, 'Radial');
-    controlsEl.append(zoomGroup, h('div', { class: 'ctl-group' }, segOrganic, segRadial));
+    const recenterBtn = h('button', { class: 'btn btn--icon', title: 'Recenter & reset layout', 'aria-label': 'Recenter and reset layout',
+      onClick: () => { concepts.forEach((c) => (nudge[c.id] = [0, 0, 0])); view.theta = 0; view.phi = -0.34; view.zoom = 1; spinVel = 0; view.sel = null; renderPanel(); } },
+      icon(['M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21'], 15, 1.9));
+    recenterBtn.firstChild.appendChild(s('circle', { cx: 12, cy: 12, r: 3.2 }));
+    controlsEl.append(zoomGroup, h('div', { class: 'ctl-group' }, recenterBtn), h('div', { class: 'ctl-group' }, segOrganic, segRadial));
     function setTake(t) { view.take = t; view.sel = null; concepts.forEach((c) => (nudge[c.id] = [0, 0, 0])); segOrganic.classList.toggle('is-active', t === 'organic'); segRadial.classList.toggle('is-active', t === 'radial'); base = base3D(); renderPanel(); }
 
     const canvas = h('div', { class: 'graph-canvas' });
