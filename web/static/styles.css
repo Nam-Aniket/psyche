@@ -257,6 +257,8 @@ body {
 /* ── Upload ─────────────────────────────────────────────────────────────── */
 .upload-wrap { max-width: 980px; }
 .upload-head { margin-bottom: 30px; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.note-banner { display: flex; align-items: flex-start; gap: 10px; margin: -8px 0 24px; padding: 12px 15px; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: var(--r); color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.note-banner__dot { flex: none; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--primary); }
 .dropzone { border: 2px dashed var(--border); background: var(--surface); border-radius: var(--r-lg); padding: 46px 30px; text-align: center; cursor: pointer; transition: border-color .18s, background-color .18s; margin-bottom: 26px; }
 .dropzone.is-drag { border-color: var(--primary); background: var(--soft-2); }
 .dropzone__icon { width: 54px; height: 54px; border-radius: 15px; background: var(--soft); color: var(--primary-ink); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }

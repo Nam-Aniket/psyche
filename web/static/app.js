@@ -410,7 +410,13 @@
     const ingestList = h('div', { class: 'ingest-list' });
     state.ingesting.forEach((f) => ingestList.appendChild(ingestRow(f)));
 
-    const wrap = h('div', { class: 'upload-wrap section-wrap' }, headRow, dz, ingestList);
+    const firstRun = state.provider && state.provider.provider === 'local' && !state.sources.length && !state.ingesting.length;
+    const firstRunNote = firstRun
+      ? h('div', { class: 'note-banner' }, h('span', { class: 'note-banner__dot' }),
+          'Your first ingest downloads the local embedding model (~90 MB), one time. After that, everything runs fully offline.')
+      : null;
+
+    const wrap = h('div', { class: 'upload-wrap section-wrap' }, headRow, dz, firstRunNote, ingestList);
     if (hasSources) {
       const table = h('div', { class: 'sources-table' });
       state.sources.forEach((src) => table.appendChild(sourceRow(src)));
