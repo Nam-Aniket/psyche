@@ -130,6 +130,8 @@ META_STOP = frozenset("""
 chapter section page pages volume book books author intro introduction preface appendix figure table note notes
 footnote copyright edition isbn part contents foreword paragraph quote excerpt purport purports verse text
 com www http https etc etc. eg ie pdf epub html
+reserved permission ibid publisher publishing trademark distributed printed
+classi cation guration cient fide eva ation inform
 """.split())
 
 _SENT_SPLIT = __import__("re").compile(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|!)\s')
@@ -297,18 +299,28 @@ def build_topic_graph(db_path: str, num_clusters=None, concepts_per_cluster: int
     def is_unigram(p):
         return " " not in p
 
-    candidates = []  # (score, phrase, cluster)
+    # Multi-word keyphrases are far more specific/meaningful than single words
+    # ("value proposition" >> "value", "devotional service" >> "service"), so
+    # weight bigrams highest, trigrams next, unigrams lowest when ranking.
+    def length_weight(p):
+        spaces = p.count(" ")
+        return 2.4 if spaces == 1 else 1.8 if spaces == 2 else 1.0
+
+    def wscore(c, j):
+        return ctfidf[c, j] * length_weight(vocab[j])
+
+    candidates = []  # (weighted_score, phrase, cluster)
     for c in range(C):
-        order = sorted(range(len(vocab)), key=lambda j: (-ctfidf[c, j], vocab[j]))
+        order = sorted(range(len(vocab)), key=lambda j: (-wscore(c, j), vocab[j]))
         picked = []
         for j in order:
             if ctfidf[c, j] <= 0:
                 break
             p = vocab[j]
             if any(p in q or q in p for q in picked):
-                continue  # substring dup within cluster
+                continue  # substring dup within cluster (keeps the higher-ranked form)
             picked.append(p)
-            candidates.append((ctfidf[c, j], p, c))
+            candidates.append((wscore(c, j), p, c))
             if len(picked) >= concepts_per_cluster * 2:
                 break
 
@@ -326,18 +338,19 @@ def build_topic_graph(db_path: str, num_clusters=None, concepts_per_cluster: int
     for c in cluster_concepts:
         cluster_concepts[c] = cluster_concepts[c][:concepts_per_cluster]
 
-    # ── 5. category labels ───────────────────────────────────────────────────
+    # ── 5. category labels = each cluster's top (multi-word) concept ──────────
     used_labels = set()
     labels_for = {}
     for c in range(C):
-        uni = [(ctfidf[c, vidx[p]], p) for p in vocab if is_unigram(p)]
-        uni.sort(key=lambda x: (-x[0], x[1]))
-        if not uni:
-            uni = [(ctfidf[c, vidx[p]], p) for p in vocab]
-            uni.sort(key=lambda x: (-x[0], x[1]))
-        label = uni[0][1].title() if uni else f"Theme {c + 1}"
-        if label in used_labels and len(uni) > 1:
-            label = f"{label} & {uni[1][1].title()}"
+        ranked = [p for p, _ in cluster_concepts.get(c, [])]
+        if not ranked:
+            ranked = [vocab[j] for j in sorted(range(len(vocab)), key=lambda j: -wscore(c, j))[:2]]
+        # prefer a multi-word phrase for the label (far more specific than a unigram)
+        multiword = [p for p in ranked if " " in p]
+        ordered = multiword + [p for p in ranked if " " not in p]
+        label = (ordered[0] if ordered else f"Theme {c + 1}").title()
+        if label in used_labels and len(ordered) > 1:
+            label = ordered[1].title()
         base = label
         k = 2
         while label in used_labels:
