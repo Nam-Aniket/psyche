@@ -143,10 +143,10 @@
 
   // ── Landing (scroll-driven cinematic) ───────────────────────────────────────
   const CAPS = [
-    { step: '01 · Ingest', h: 'Drop in your library.', p: 'PDFs, EPUBs, Markdown, notes — chunked and embedded on your machine. Nothing leaves.' },
-    { step: '02 · Embed', h: 'Every idea, a coordinate.', p: 'Local ONNX embeddings turn your words into vectors — searchable by meaning, not just keywords.' },
+    { step: '01 · Ingest', h: 'Drop in your library.', p: 'PDFs, EPUBs, Markdown, notes, chunked and embedded on your machine. Nothing leaves.' },
+    { step: '02 · Embed', h: 'Every idea, a coordinate.', p: 'Local ONNX embeddings turn your words into vectors, searchable by meaning, not just keywords.' },
     { step: '03 · Link', h: 'Ideas find each other.', p: 'Related concepts cluster and connect, forming a living map of how your knowledge fits together.' },
-    { step: '04 · Recall', h: 'A mind you can question.', p: 'Ask in plain language, get cited answers — and one shared memory across every AI agent you use.' },
+    { step: '04 · Recall', h: 'A mind you can question.', p: 'Ask in plain language, get cited answers, and one shared memory across every AI agent you use.' },
   ];
   function Landing() {
     const wrap = h('div', { class: 'app-root landing' });
@@ -156,7 +156,7 @@
         h('div', { class: 'hero' },
           h('div', { class: 'eyebrow' }, h('span', { class: 'eyebrow__dot' }), 'Runs entirely on your machine'),
           (() => { const hh = h('h1'); hh.innerHTML = 'A private second brain<br>your <em>whole toolchain</em> can remember.'; return hh; })(),
-          h('p', {}, 'Psyche turns your docs, books and notes into a private, searchable mind — and shares one cited memory across every AI coding agent you use.'),
+          h('p', {}, 'Psyche turns your docs, books and notes into a private, searchable mind, and shares one cited memory across every AI coding agent you use.'),
           h('div', { class: 'cta-row' },
             h('button', { class: 'btn btn--primary', onClick: () => go('app', 'graph') }, 'Open the app', icon(ICONS.arrow, 18, 2.2)),
             h('button', { class: 'btn btn--soft', onClick: () => go('app', 'setup') }, icon(ICONS.gear, 18, 1.9), 'Connect your agent'),
@@ -181,11 +181,11 @@
 
     const agents = h('section', { class: 'lh-section lh-agents reveal' },
       h('h2', {}, 'One memory. Every agent.'),
-      h('p', {}, 'A preference stated in Codex is known to Claude Code. A lesson learned in Antigravity follows you everywhere — a shared, local fact store, billed $0.'),
+      h('p', {}, 'A preference stated in Codex is known to Claude Code. A lesson learned in Antigravity follows you everywhere: a shared, local fact store, billed $0.'),
       h('div', { class: 'lh-agent-row' },
-        h('div', { class: 'lh-agent' }, 'CC'), h('div', { class: 'lh-agent' }, 'CX'),
-        h('div', { class: 'lh-core' }),
-        h('div', { class: 'lh-agent' }, 'GM'), h('div', { class: 'lh-agent' }, 'AG')));
+        h('div', { class: 'lh-agent' }, 'Claude Code'), h('div', { class: 'lh-agent' }, 'Codex'),
+        h('div', { class: 'lh-core', title: 'Psyche' }),
+        h('div', { class: 'lh-agent' }, 'Gemini'), h('div', { class: 'lh-agent' }, 'Antigravity')));
 
     const cta = h('section', { class: 'lh-section lh-cta reveal' },
       (() => { const hh = h('h2'); hh.innerHTML = 'Give your agents a <em>memory</em>.'; return hh; })(),
@@ -200,7 +200,9 @@
       hero, scrolly, agents, cta,
       h('div', { class: 'lh-foot' }, 'Psyche · local-first knowledge & memory for AI agents'),
     );
-    requestAnimationFrame(() => { if (window.PsycheLanding) window.PsycheLanding.init(); });
+    const initLanding = () => { if (state.screen === 'landing' && window.PsycheLanding) window.PsycheLanding.init(); };
+    requestAnimationFrame(() => requestAnimationFrame(initLanding));
+    setTimeout(initLanding, 140); // fallback if rAF is throttled (init is idempotent)
     return wrap;
   }
   function brand(small) {
@@ -338,7 +340,7 @@
       h('div', { class: 'wired-panel__rule' }), h('div', { class: 'k', style: 'margin-bottom:8px' }, '› agents'),
     );
     if (connectedKeys.length) connectedKeys.forEach((k) => { const m = CLIENT_META[k] || { name: k, target: '' }; body.appendChild(h('div', { class: 'wired-agent' }, h('span', { class: 'wired-agent__tick' }, '✓'), h('span', { style: 'flex:1' }, h('span', { class: 'wired-agent__name' }, m.name), h('br'), h('span', { class: 'wired-agent__target' }, m.target)))); });
-    else body.appendChild(h('div', { class: 'wired-empty' }, 'none connected yet — pick one above'));
+    else body.appendChild(h('div', { class: 'wired-empty' }, 'none connected yet · pick one above'));
     return h('div', { class: 'wired-panel' }, h('div', { class: 'wired-panel__bar' }, h('span', { class: 'wired-panel__dot' }), h('span', { class: 'wired-panel__dot' }), h('span', { class: 'wired-panel__dot' }), h('span', { class: 'wired-panel__title' }, 'what gets wired')), body);
   }
 
@@ -652,8 +654,10 @@
       // cap on-focus edge labels to the strongest few so high-degree nodes don't flood the canvas
       let labelSet = null;
       if (focusId && showEdgeLabels) {
-        labelSet = new Set(edgeEls.filter((e) => e.l.s === focusId || e.l.t === focusId)
-          .sort((a, b) => b.l.strength - a.l.strength).slice(0, 6).map((e) => e.i));
+        // surface only the meaningful relationship types; the generic "co-occurs
+        // with" is suppressed (it was a repetitive wall and adds no information)
+        labelSet = new Set(edgeEls.filter((e) => (e.l.s === focusId || e.l.t === focusId) && e.l.rel !== 'co-occurs with')
+          .sort((a, b) => b.l.strength - a.l.strength).slice(0, 5).map((e) => e.i));
       }
       edgeEls.forEach(({ path, l, i }) => {
         const a = proj[l.s], b = proj[l.t];
@@ -715,6 +719,7 @@
         const c = conceptById(view.sel);
         const conns = links.filter((l) => l.s === view.sel || l.t === view.sel).map((l) => { const otherId = l.s === view.sel ? l.t : l.s; return { o: conceptById(otherId), rel: l.s === view.sel ? l.rel : '← ' + l.rel, str: l.strength }; }).sort((a, b) => b.str - a.str);
         inner.append(
+          h('button', { class: 'panel-clear', title: 'Clear selection (Esc)', 'aria-label': 'Clear selection', onClick: () => { view.sel = null; renderPanel(); } }, icon(ICONS.close, 13, 2), 'Clear selection'),
           h('div', { class: 'concept-tag', style: 'color:' + strokeForHue(hueForId(c.id)) }, h('span', { style: 'background:' + strokeForHue(hueForId(c.id)) }), legendItems ? (legendItems.find((x) => x.key === colorKeyOf(c.id)) || {}).label || 'Concept' : 'Concept'),
           h('h2', { class: 'sel-name' }, c.name),
           h('p', { class: 'sel-def' }, c.def),
@@ -750,6 +755,8 @@
     function onUp() { if (drag) { lastMoved = drag.moved; spinVel = REDUCE ? 0 : Math.max(-0.06, Math.min(0.06, velTheta)); drag = null; svg.classList.remove('is-grabbing'); } }
     svg.addEventListener('click', () => { if (lastMoved) { lastMoved = false; return; } if (view.sel) { view.sel = null; renderPanel(); } });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom = Math.max(0.55, Math.min(2.4, view.zoom * (e.deltaY > 0 ? 0.92 : 1.08))); }, { passive: false });
+    function onKey(e) { if (e.key === 'Escape' && view.sel) { view.sel = null; renderPanel(); } }
+    window.addEventListener('keydown', onKey);
 
     let skip = 0;
     function loop() {
@@ -767,7 +774,7 @@
 
     return {
       refreshTheme() { rebuildGradients(); concepts.forEach((c) => nodeEls[c.id].dot.setAttribute('stroke', strokeForHue(hueForId(c.id)))); refreshLegendColors(); renderPanel(); renderTooltip(); },
-      dispose() { if (raf) cancelAnimationFrame(raf); if (ro) ro.disconnect(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); },
+      dispose() { if (raf) cancelAnimationFrame(raf); if (ro) ro.disconnect(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); window.removeEventListener('keydown', onKey); },
     };
   }
 

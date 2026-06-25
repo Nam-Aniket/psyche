@@ -318,6 +318,8 @@ body {
 .graph-panel { width: 340px; flex: none; border-left: 1px solid var(--border); background: var(--surface); overflow-y: auto; }
 .graph-panel__inner { padding: 26px 24px; animation: psFade .3s ease; }
 .graph-panel__inner h2 { font-family: var(--serif); font-weight: 600; letter-spacing: -.01em; margin: 0 0 12px; }
+.panel-clear { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; margin-bottom: 14px; border: 1px solid var(--border); background: var(--surface); border-radius: 20px; color: var(--muted); font: 600 12px var(--sans); cursor: pointer; transition: color .15s, border-color .15s; }
+.panel-clear:hover { color: var(--ink); border-color: var(--mark); }
 .concept-tag { display: inline-flex; align-items: center; gap: 7px; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; padding: 5px 11px; border-radius: 20px; margin-bottom: 16px; background: var(--soft-2); }
 .concept-tag span { width: 8px; height: 8px; border-radius: 50%; }
 .sel-name { font-size: 26px; line-height: 1.15; }
@@ -445,7 +447,7 @@ body {
 .lh-core::after { content: ""; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #fff; }
 .lh-core::before { content: ""; position: absolute; inset: -6px; border-radius: 24px; border: 1.5px solid var(--primary-soft); animation: corePulse 3s ease-in-out infinite; }
 @keyframes corePulse { 0%, 100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.12); opacity: 0; } }
-.lh-agent { width: 64px; height: 64px; border-radius: 16px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font: 600 15px var(--mono); color: var(--primary-ink); box-shadow: var(--sh-sm); }
+.lh-agent { height: 48px; padding: 0 18px; border-radius: 24px; background: var(--surface); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font: 600 14.5px var(--sans); color: var(--ink-2); box-shadow: var(--sh-sm); white-space: nowrap; }
 
 .lh-cta { text-align: center; border-top: 1px solid var(--border); }
 .lh-cta h2 { font-family: var(--serif); font-weight: 500; font-size: clamp(30px, 4.4vw, 56px); letter-spacing: -.025em; margin: 0 0 26px; color: var(--ink); text-wrap: balance; }
