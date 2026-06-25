@@ -545,11 +545,14 @@
 
     const view = { theta: 0, phi: -0.34, zoom: 1, take: 'organic', hover: null, sel: null };
     let drag = null, lastMoved = false, raf = null, ro = null;
+    // per-node nudging: drag a single node to pull it (and its links) out from the pack
+    let nodeDrag = null, suppressClick = false, lastProj = {}, lastGm = { sc: 1 };
+    const nudge = {};
     // living-graph state: staggered entrance, idle breathing, drag inertia
     const REDUCE = reduceMotion();
     const ENGINE_T0 = performance.now();
     let spinVel = 0, velTheta = 0;
-    const seedOf = {}; concepts.forEach((c, i) => { seedOf[c.id] = { s: i * 2.39996, delay: i * 16 }; });
+    const seedOf = {}; concepts.forEach((c, i) => { seedOf[c.id] = { s: i * 2.39996, delay: i * 16 }; nudge[c.id] = [0, 0, 0]; });
 
     const zoomGroup = h('div', { class: 'ctl-group' },
       h('button', { class: 'btn btn--icon', title: 'Zoom out', 'aria-label': 'Zoom out', onClick: () => { view.zoom = Math.max(0.55, view.zoom / 1.18); } }, '−'),
@@ -557,14 +560,14 @@
     const segOrganic = h('button', { class: 'btn btn--seg is-active', onClick: () => setTake('organic') }, 'Organic');
     const segRadial = h('button', { class: 'btn btn--seg', onClick: () => setTake('radial') }, 'Radial');
     controlsEl.append(zoomGroup, h('div', { class: 'ctl-group' }, segOrganic, segRadial));
-    function setTake(t) { view.take = t; view.sel = null; segOrganic.classList.toggle('is-active', t === 'organic'); segRadial.classList.toggle('is-active', t === 'radial'); base = base3D(); renderPanel(); }
+    function setTake(t) { view.take = t; view.sel = null; concepts.forEach((c) => (nudge[c.id] = [0, 0, 0])); segOrganic.classList.toggle('is-active', t === 'organic'); segRadial.classList.toggle('is-active', t === 'radial'); base = base3D(); renderPanel(); }
 
     const canvas = h('div', { class: 'graph-canvas' });
     const svg = s('svg', { class: 'graph-svg', viewBox: '0 0 880 600', preserveAspectRatio: 'xMidYMid meet' });
     const defs = s('defs'); svg.appendChild(defs);
     const edgeLayer = s('g'), nodeLayer = s('g'); svg.append(edgeLayer, nodeLayer);
     const overlay = h('div', { class: 'graph-overlay' });
-    const hint = h('div', { class: 'graph-hint' }, 'hover a node · drag to orbit · scroll to zoom');
+    const hint = h('div', { class: 'graph-hint' }, 'drag a node to pull it out · drag space to orbit · scroll to zoom');
     const legend = buildLegend();
     canvas.append(svg, overlay, legend, hint);
     const panel = h('aside', { class: 'graph-panel' });
@@ -625,9 +628,10 @@
         const hit = s('circle', { fill: 'transparent' });
         const dot = s('circle', { fill: 'url(#' + gradIdFor(c.id) + ')', stroke: strokeForHue(hueForId(c.id)) });
         g.append(hit, dot);
-        g.addEventListener('mouseenter', () => { if (!drag) { view.hover = c.id; renderTooltip(); } });
+        g.addEventListener('mouseenter', () => { if (!drag && !nodeDrag) { view.hover = c.id; renderTooltip(); } });
         g.addEventListener('mouseleave', () => { if (view.hover === c.id) { view.hover = null; renderTooltip(); } });
-        g.addEventListener('click', (e) => { e.stopPropagation(); view.sel = view.sel === c.id ? null : c.id; renderPanel(); });
+        g.addEventListener('mousedown', (e) => { e.stopPropagation(); nodeDrag = { id: c.id, x: e.clientX, y: e.clientY, moved: false }; spinVel = 0; svg.classList.add('is-grabbing'); });
+        g.addEventListener('click', (e) => { e.stopPropagation(); if (suppressClick) { suppressClick = false; return; } view.sel = view.sel === c.id ? null : c.id; renderPanel(); });
         nodeLayer.appendChild(g); nodeEls[c.id] = { g, hit, dot };
         const lbl = h('div', { class: 'node-label' }, c.label); overlay.appendChild(lbl); labelEls[c.id] = lbl;
       });
@@ -636,18 +640,21 @@
 
     function frame() {
       const now = performance.now();
-      const breathe = !REDUCE && !drag;
+      const breathe = !REDUCE && !drag && !nodeDrag;
       const jbase = (c) => {
-        const b = base[c.id];
+        const o = nudge[c.id], b0 = base[c.id];
+        const b = [b0[0] + o[0], b0[1] + o[1], b0[2] + o[2]];
         if (!breathe) return b;
         const sd = seedOf[c.id].s, amp = 4.5;
         return [b[0] + Math.sin(now * 0.0006 + sd) * amp, b[1] + Math.cos(now * 0.00052 + sd) * amp, b[2] + Math.sin(now * 0.0007 + sd * 1.3) * amp];
       };
       const entOf = (c) => { if (REDUCE) return 1; const e = (now - ENGINE_T0 - seedOf[c.id].delay) / 620; return e <= 0 ? 0 : e >= 1 ? 1 : 1 - Math.pow(1 - e, 3); };
       const proj = {}; concepts.forEach((c) => (proj[c.id] = project(jbase(c))));
+      lastProj = proj;
       const zs = concepts.map((c) => proj[c.id].z), zmin = Math.min(...zs), zmax = Math.max(...zs), zr = (zmax - zmin) || 1;
       const dT = (z) => (z - zmin) / zr;
       const gm = gMap(), toPx = (vx, vy) => ({ left: gm.ox + vx * gm.sc, top: gm.oy + vy * gm.sc });
+      lastGm = gm;
       const focusId = view.hover || view.sel, nb = focusId ? neighbors(focusId) : {};
 
       edgeEls.map((e) => ({ e, z: (proj[e.l.s].z + proj[e.l.t].z) / 2 })).sort((a, b) => a.z - b.z).forEach((o) => edgeLayer.appendChild(o.e.path));
@@ -750,9 +757,28 @@
 
     svg.addEventListener('mousedown', (e) => { drag = { x: e.clientX, y: e.clientY, th: view.theta, ph: view.phi, moved: false }; spinVel = 0; velTheta = 0; svg.classList.add('is-grabbing'); });
     window.addEventListener('mousemove', onMove);
-    function onMove(e) { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true; const nt = drag.th + dx * 0.008; velTheta = nt - view.theta; view.theta = nt; view.phi = Math.max(-1.15, Math.min(1.15, drag.ph - dy * 0.006)); }
+    function onMove(e) {
+      if (nodeDrag) {
+        const dxs = e.clientX - nodeDrag.x, dys = e.clientY - nodeDrag.y;
+        if (Math.abs(dxs) + Math.abs(dys) > 3) nodeDrag.moved = true;
+        nodeDrag.x = e.clientX; nodeDrag.y = e.clientY;
+        const p = lastProj[nodeDrag.id]; const sc = lastGm.sc || 1; const s = (p && p.s) || 1;
+        // screen delta → viewBox → base space (inverse the current orbit rotation)
+        const dvx = (dxs / sc) / s, dvy = (dys / sc) / s;
+        const ct = Math.cos(view.theta), st = Math.sin(view.theta), cp = Math.cos(view.phi) || 1;
+        const o = nudge[nodeDrag.id];
+        o[0] += dvx * ct; o[2] += dvx * st; o[1] += dvy / cp;
+        return;
+      }
+      if (!drag) return;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      const nt = drag.th + dx * 0.008; velTheta = nt - view.theta; view.theta = nt; view.phi = Math.max(-1.15, Math.min(1.15, drag.ph - dy * 0.006));
+    }
     window.addEventListener('mouseup', onUp);
-    function onUp() { if (drag) { lastMoved = drag.moved; spinVel = REDUCE ? 0 : Math.max(-0.06, Math.min(0.06, velTheta)); drag = null; svg.classList.remove('is-grabbing'); } }
+    function onUp() {
+      if (nodeDrag) { suppressClick = nodeDrag.moved; nodeDrag = null; svg.classList.remove('is-grabbing'); return; }
+      if (drag) { lastMoved = drag.moved; spinVel = REDUCE ? 0 : Math.max(-0.06, Math.min(0.06, velTheta)); drag = null; svg.classList.remove('is-grabbing'); }
+    }
     svg.addEventListener('click', () => { if (lastMoved) { lastMoved = false; return; } if (view.sel) { view.sel = null; renderPanel(); } });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); view.zoom = Math.max(0.55, Math.min(2.4, view.zoom * (e.deltaY > 0 ? 0.92 : 1.08))); }, { passive: false });
     function onKey(e) { if (e.key === 'Escape' && view.sel) { view.sel = null; renderPanel(); } }
@@ -761,7 +787,7 @@
     let skip = 0;
     function loop() {
       raf = requestAnimationFrame(loop);
-      const idle = currentScreen === 'graph' && !drag && !view.hover;
+      const idle = currentScreen === 'graph' && !drag && !nodeDrag && !view.hover;
       if (Math.abs(spinVel) > 0.0002) {
         view.theta += spinVel; spinVel *= 0.94;            // drag-release inertia, decays
       } else if (idle && !REDUCE) {

@@ -163,7 +163,6 @@
       gsap.registerPlugin(ScrollTrigger);
       const lenis = new Lenis({ duration: 1.05, smoothWheel: true, wheelMultiplier: 1 });
       S.lenis = lenis;
-      window.__lenis = lenis; // debug handle for programmatic scrolling/verification
       lenis.on('scroll', ScrollTrigger.update);
       const ticker = (t) => lenis.raf(t * 1000);
       gsap.ticker.add(ticker); gsap.ticker.lagSmoothing(0); S.ticker = ticker;
