@@ -293,6 +293,7 @@
     const left = h('div', {},
       h('div', { class: 'step-label' }, h('span', { class: 'step-num' }, '1'), 'Choose an LLM path'),
       h('div', { class: 'path-list' }, PATHS.map((p) => pathOption(p))),
+      h('div', { class: 'path-note' }, 'Your active path is set in ', h('code', {}, '.env'), '. Selecting another here previews what it wires.'),
       h('div', { class: 'step-label' }, h('span', { class: 'step-num' }, '2'), 'Connect your agent'),
       h('div', { class: 'agent-grid' }, supportedClients.map((c) => agentCard(c))),
     );
@@ -301,14 +302,20 @@
       h('div', { class: 'setup-grid' }, left, wiredPanel()),
     );
   }
+  function activePathId() {
+    const p = state.provider; if (!p) return 'agent';
+    return (p.chat_model && p.chat_model !== 'none')
+      ? ((p.chat_provider === 'ollama' || p.provider === 'ollama') ? 'ollama' : 'apikey') : 'agent';
+  }
   function pathOption(p) {
     const on = state.llmPath === p.id;
+    const active = p.id === activePathId();
     return h('div', { class: 'path-option' + (on ? ' is-selected' : ''), role: 'radio', 'aria-checked': on ? 'true' : 'false', tabindex: '0',
       onClick: () => { state.llmPath = p.id; drawSetup(); },
       onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.llmPath = p.id; drawSetup(); } } },
       h('span', { class: 'path-radio' }),
       h('span', { style: 'flex:1' },
-        h('span', { style: 'display:flex;align-items:center;gap:10px' }, h('span', { class: 'path-option__name' }, p.name), h('span', { class: 'path-option__tag' }, p.tag)),
+        h('span', { style: 'display:flex;align-items:center;gap:10px' }, h('span', { class: 'path-option__name' }, p.name), h('span', { class: 'path-option__tag' }, p.tag), active ? h('span', { class: 'path-active' }, 'Active') : null),
         h('span', { class: 'path-option__desc' }, p.desc),
         on && p.field ? h('label', { class: 'field', onClick: (e) => e.stopPropagation() }, h('span', { class: 'field__label' }, p.field.label), h('input', { type: p.field.type, placeholder: p.field.placeholder })) : null,
       ),

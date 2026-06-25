@@ -223,6 +223,10 @@ body {
 .path-option__name { font: 600 16px var(--sans); color: var(--ink); }
 .path-option__tag { font: 11px var(--mono); color: var(--muted); border: 1px solid var(--border); padding: 2px 8px; border-radius: 20px; }
 .path-option__desc { display: block; color: var(--muted); font-size: 14px; line-height: 1.5; margin-top: 5px; }
+.path-active { font: 600 10px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--good); background: color-mix(in srgb, var(--good), transparent 86%); padding: 2px 8px; border-radius: 20px; display: inline-flex; align-items: center; gap: 5px; }
+.path-active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+.path-note { font-size: 12.5px; color: var(--muted-2); margin: -18px 0 30px; }
+.path-note code { font-family: var(--mono); font-size: 11.5px; background: var(--surface-2); padding: 1px 6px; border-radius: 6px; color: var(--ink-2); }
 .field { display: block; margin-top: 14px; }
 .field__label { display: block; font: 11px var(--mono); color: var(--muted-2); letter-spacing: .04em; margin-bottom: 6px; }
 .field input { width: 100%; font: 13px var(--mono); color: var(--ink); background: var(--surface-3); border: 1.5px solid var(--border); border-radius: 9px; padding: 11px 13px; outline: none; }
