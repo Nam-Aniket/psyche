@@ -379,9 +379,15 @@
 
     const wrap = h('div', { class: 'upload-wrap section-wrap' }, headRow, dz, ingestList);
     if (hasSources) {
-      wrap.appendChild(h('div', { class: 'sources-head' }, h('h2', {}, 'Ingested sources ', h('span', { class: 'count-pill' }, String(state.sources.length)))));
       const table = h('div', { class: 'sources-table' });
       state.sources.forEach((src) => table.appendChild(sourceRow(src)));
+      const filter = state.sources.length > 8
+        ? h('input', { class: 'sources-filter', type: 'search', placeholder: 'Filter sources…', 'aria-label': 'Filter sources',
+            onInput: (e) => { const q = e.target.value.toLowerCase(); table.querySelectorAll('.source-row').forEach((r) => { r.style.display = (r.dataset.search || '').includes(q) ? '' : 'none'; }); } })
+        : null;
+      wrap.appendChild(h('div', { class: 'sources-head' },
+        h('h2', {}, 'Ingested sources ', h('span', { class: 'count-pill' }, `${state.sources.length} · ${chunkTotal().toLocaleString()} chunks`)),
+        filter));
       wrap.appendChild(table);
     } else if (state.ingesting.length === 0) {
       wrap.appendChild(h('div', { class: 'empty-state' },
@@ -395,7 +401,7 @@
   }
   function sourceRow(src) {
     const confirming = confirmRemove === src.id;
-    return h('div', { class: 'source-row' },
+    return h('div', { class: 'source-row', dataset: { search: (src.title + ' ' + (src.author || '')).toLowerCase() } },
       h('span', { class: 'source-row__kind' }, kindOf(src.title)),
       h('span', { class: 'source-row__body' }, h('span', { class: 'source-row__title' }, src.title), h('span', { class: 'source-row__meta' }, (src.author || 'Unknown') + ' · local')),
       h('span', { class: 'source-row__chunks' }, `${src.chunk_count} chunks`),

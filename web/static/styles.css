@@ -272,6 +272,9 @@ body {
 .sources-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; }
 .sources-head h2 { font: 600 14px var(--sans); color: var(--ink); margin: 0; display: flex; align-items: center; gap: 9px; }
 .count-pill { font: 11px var(--mono); color: var(--muted); background: var(--soft); padding: 2px 9px; border-radius: 20px; }
+.sources-filter { height: 34px; width: 220px; max-width: 46vw; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); color: var(--ink); font: 13.5px var(--sans); outline: none; transition: border-color .15s ease; }
+.sources-filter::placeholder { color: var(--muted-2); }
+.sources-filter:focus { border-color: var(--primary); }
 .sources-table { border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; background: var(--surface); box-shadow: var(--sh-sm); }
 .source-row { display: flex; align-items: center; gap: 15px; padding: 15px 18px; border-bottom: 1px solid var(--border-2); }
 .source-row:last-child { border-bottom: 0; }
