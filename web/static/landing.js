@@ -151,6 +151,33 @@
 
       if (heroCanvas) { const id = startHero(heroCanvas, isReduced); if (id) S.rafs.push(id); }
 
+      // ── scroll cue + top progress bar (works in every path) ─────────────────
+      const cue = document.getElementById('scroll-cue');
+      const bar = document.getElementById('lh-progress');
+      if (cue) {
+        cue.addEventListener('click', () => {
+          const target = document.getElementById('lh-scrolly');
+          if (!target) return;
+          const destY = target.getBoundingClientRect().top + window.scrollY;
+          // Lenis controls scroll and hijacks native smooth-scroll, so use its own
+          // animated scrollTo; fall back to native smooth when Lenis is absent.
+          if (S && S.lenis && typeof S.lenis.scrollTo === 'function') {
+            S.lenis.scrollTo(destY, { duration: 1.0 });
+          } else {
+            window.scrollTo({ top: destY, behavior: 'smooth' });
+          }
+        });
+      }
+      const onScrollUI = () => {
+        const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+        const p = Math.min(1, Math.max(0, window.scrollY / max));
+        if (bar) bar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+        if (cue) cue.classList.toggle('is-hidden', window.scrollY > 60);
+      };
+      window.addEventListener('scroll', onScrollUI, { passive: true });
+      S.onScrollUI = onScrollUI;
+      onScrollUI();
+
       // Fallback: no motion libs or reduced-motion → reveal everything, show the
       // final "recall" scene. Content is never gated on scroll.
       if (isReduced || !libsReady()) {
@@ -164,6 +191,7 @@
       const lenis = new Lenis({ duration: 1.05, smoothWheel: true, wheelMultiplier: 1 });
       S.lenis = lenis;
       lenis.on('scroll', ScrollTrigger.update);
+      lenis.on('scroll', onScrollUI); // drive progress bar + cue hide via Lenis
       const ticker = (t) => lenis.raf(t * 1000);
       gsap.ticker.add(ticker); gsap.ticker.lagSmoothing(0); S.ticker = ticker;
 
@@ -193,6 +221,7 @@
       if (S.ticker && window.gsap) gsap.ticker.remove(S.ticker);
       if (S.lenis) { try { S.lenis.destroy(); } catch (e) {} }
       if (S.onResize) window.removeEventListener('resize', S.onResize);
+      if (S.onScrollUI) window.removeEventListener('scroll', S.onScrollUI);
       S = null;
     },
   };

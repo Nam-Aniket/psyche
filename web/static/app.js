@@ -168,7 +168,11 @@
           ),
         ),
       ),
-      h('div', { class: 'scroll-cue' }, h('span', { class: 'scroll-cue__rail' }), 'Scroll'),
+      h('button', { class: 'scroll-cue', id: 'scroll-cue', type: 'button', 'aria-label': 'Scroll to see how Psyche works' },
+        h('span', { class: 'scroll-cue__label' }, 'See how it works'),
+        h('span', { class: 'scroll-cue__mouse' }, h('span', { class: 'scroll-cue__dot' })),
+        h('span', { class: 'scroll-cue__chev', 'aria-hidden': 'true' }, icon('M6 9l6 6 6-6', 18, 2.4)),
+      ),
     );
 
     const caps = h('div', { class: 'lh-captions' });
@@ -194,6 +198,7 @@
         h('button', { class: 'btn btn--soft', onClick: () => go('app', 'upload') }, icon(ICONS.upload, 18, 1.9), 'Add documents')));
 
     wrap.append(
+      h('div', { class: 'lh-progress', id: 'lh-progress', 'aria-hidden': 'true' }),
       h('header', { class: 'landing__header' },
         brand(false), h('span', { class: 'tag-pill', style: 'margin-left:6px' }, 'v0.7 · local'),
         h('nav', { class: 'landing__nav' }, themeBtn(), h('button', { class: 'btn btn--soft', onClick: () => go('app', 'graph') }, 'Open the app'))),

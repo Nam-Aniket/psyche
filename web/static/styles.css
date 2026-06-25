@@ -449,9 +449,22 @@ body {
 .lh-hero-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
 .lh-hero > .landing__main { position: relative; z-index: 1; }
 .lh-hero .hero h1, .lh-hero .hero p { position: relative; }
-.scroll-cue { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 8px; font: 600 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted-2); }
-.scroll-cue__rail { width: 1px; height: 38px; background: linear-gradient(var(--muted-2), transparent); animation: cueDrop 1.8s ease-in-out infinite; transform-origin: top; }
-@keyframes cueDrop { 0% { transform: scaleY(0); opacity: 0; } 40% { transform: scaleY(1); opacity: 1; } 100% { transform: scaleY(1) translateY(38px); opacity: 0; } }
+/* Top scroll-progress bar — immediately signals there is a journey below. */
+.lh-progress { position: fixed; top: 0; left: 0; width: 100%; height: 3px; z-index: var(--z-toast); transform: scaleX(0); transform-origin: left; background: linear-gradient(90deg, var(--primary), var(--mark)); box-shadow: 0 0 10px color-mix(in srgb, var(--primary), transparent 40%); transition: transform .08s linear; pointer-events: none; }
+
+/* Hero scroll cue — bold, animated, clickable. */
+.scroll-cue { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: var(--z-sticky); display: flex; flex-direction: column; align-items: center; gap: 9px; padding: 6px 10px 4px; background: transparent; border: 0; cursor: pointer; color: var(--ink-2); animation: cueBob 2.4s ease-in-out infinite; transition: opacity .4s ease, transform .4s ease; }
+.scroll-cue:hover { color: var(--primary-ink); }
+.scroll-cue:hover .scroll-cue__mouse { border-color: var(--primary); box-shadow: 0 0 0 6px var(--primary-soft), 0 8px 22px -10px color-mix(in srgb, var(--primary), transparent 30%); }
+.scroll-cue:focus-visible { outline: 2px solid var(--primary); outline-offset: 6px; border-radius: 14px; }
+.scroll-cue.is-hidden { opacity: 0; transform: translateX(-50%) translateY(14px); pointer-events: none; }
+.scroll-cue__label { font: 600 12.5px var(--sans); letter-spacing: .01em; }
+.scroll-cue__mouse { position: relative; width: 26px; height: 40px; border: 2px solid var(--mark); border-radius: 14px; background: color-mix(in srgb, var(--surface), transparent 35%); transition: border-color .25s ease, box-shadow .25s ease; }
+.scroll-cue__dot { position: absolute; left: 50%; top: 8px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 8px var(--primary); animation: scrollDot 1.7s cubic-bezier(.6, 0, .2, 1) infinite; }
+.scroll-cue__chev { display: flex; color: var(--mark); animation: chevBob 2.4s ease-in-out infinite; }
+@keyframes scrollDot { 0% { transform: translateY(0); opacity: 0; } 18% { opacity: 1; } 70% { transform: translateY(16px); opacity: 0; } 100% { transform: translateY(16px); opacity: 0; } }
+@keyframes cueBob { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(5px); } }
+@keyframes chevBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
 
 .lh-scrolly { position: relative; }
 .lh-stage { height: 100vh; position: relative; overflow: hidden; }
@@ -494,6 +507,6 @@ body {
     scroll-behavior: auto !important;
   }
   .nav-indicator, .progress.is-indeterminate > div, .thinking__dots span,
-  .scroll-cue__rail, .lh-core::before { animation: none !important; }
+  .scroll-cue, .scroll-cue__dot, .scroll-cue__chev, .lh-core::before { animation: none !important; }
   .reveal { opacity: 1 !important; transform: none !important; }
 }
