@@ -268,9 +268,9 @@
 
   // ── Setup ─────────────────────────────────────────────────────────────────
   const PATHS = [
-    { id: 'apikey', name: 'Bring your own API key', tag: 'cloud chat', desc: 'Use Anthropic, OpenAI or Gemini for chat & fact extraction. Embeddings still run locally.', field: { label: 'API key', type: 'password', placeholder: 'sk-ant-…' } },
-    { id: 'ollama', name: 'Local Ollama', tag: 'fully offline', desc: 'A local chat model plus local embeddings. $0, no network, nothing leaves your disk.', field: { label: 'model', type: 'text', placeholder: 'llama3' } },
-    { id: 'agent', name: 'Agent-only', tag: 'no chat model', desc: 'Skip the chat model entirely. Facts accumulate via your coding agent over MCP; search runs on local ONNX.' },
+    { id: 'apikey', name: 'Gemini API key', tag: 'cloud chat', desc: 'Use a free Google Gemini key for in-app chat & fact extraction. Embeddings still run locally.', field: { label: 'Gemini API key', type: 'password', placeholder: 'AIza…  (free at aistudio.google.com)' }, chat_provider: 'gemini' },
+    { id: 'ollama', name: 'Local Ollama', tag: 'fully offline', desc: 'A local chat model plus local embeddings. $0, no network, nothing leaves your disk.', field: { label: 'model', type: 'text', placeholder: 'llama3' }, chat_provider: 'ollama' },
+    { id: 'agent', name: 'Agent-only', tag: 'no chat model', desc: 'Skip the in-app chat model. Facts accumulate via your coding agent over MCP; search runs on local ONNX.', chat_provider: 'none' },
   ];
   const CLIENT_META = {
     'claude-code': { name: 'Claude Code', glyph: 'CC', via: 'lifecycle hooks · zero model overhead', target: '~/.claude/settings.json' },
@@ -310,6 +310,13 @@
   function pathOption(p) {
     const on = state.llmPath === p.id;
     const active = p.id === activePathId();
+    let input = null;
+    if (on && p.field) input = h('input', { type: p.field.type, placeholder: p.field.placeholder });
+    const saveBtn = on
+      ? h('button', { class: 'btn btn--primary', style: 'margin-top:14px;font-size:13.5px;padding:9px 16px',
+          onClick: (e) => { e.stopPropagation(); saveChatProvider(p, input ? input.value.trim() : ''); } },
+          active ? 'Re-save' : 'Save chat setting')
+      : null;
     return h('div', { class: 'path-option' + (on ? ' is-selected' : ''), role: 'radio', 'aria-checked': on ? 'true' : 'false', tabindex: '0',
       onClick: () => { state.llmPath = p.id; drawSetup(); },
       onKeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.llmPath = p.id; drawSetup(); } } },
@@ -317,9 +324,23 @@
       h('span', { style: 'flex:1' },
         h('span', { style: 'display:flex;align-items:center;gap:10px' }, h('span', { class: 'path-option__name' }, p.name), h('span', { class: 'path-option__tag' }, p.tag), active ? h('span', { class: 'path-active' }, 'Active') : null),
         h('span', { class: 'path-option__desc' }, p.desc),
-        on && p.field ? h('label', { class: 'field', onClick: (e) => e.stopPropagation() }, h('span', { class: 'field__label' }, p.field.label), h('input', { type: p.field.type, placeholder: p.field.placeholder })) : null,
+        input ? h('label', { class: 'field', onClick: (e) => e.stopPropagation() }, h('span', { class: 'field__label' }, p.field.label), input) : null,
+        saveBtn,
       ),
     );
+  }
+  async function saveChatProvider(p, value) {
+    const payload = { chat_provider: p.chat_provider };
+    if (p.id === 'apikey') { if (!value) { toast('Enter your Gemini API key first', true); return; } payload.api_key = value; }
+    if (p.id === 'ollama' && value) payload.chat_model = value;
+    try {
+      const res = await api.post('/provider', payload);
+      state.provider = res;
+      toast(p.chat_provider === 'none' ? 'Chat disabled — search stays local' : `Chat enabled · ${res.chat_provider} · ${res.chat_model}`);
+      drawSetup();
+    } catch (e) {
+      toast(e.detail || e.message || 'Could not save', true);
+    }
   }
   function agentCard(key) {
     const m = CLIENT_META[key] || { name: key, glyph: key.slice(0, 2).toUpperCase(), via: 'MCP server', target: '' };

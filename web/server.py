@@ -19,6 +19,12 @@ def main(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> Non
     """
     import uvicorn
 
+    # The web app is browser-configured, so never block startup on the
+    # interactive CLI setup wizard. With no .env, LLMClient defaults to the
+    # local/offline provider (ONNX embeddings) — search, graph, ingest and
+    # memory all work with zero configuration; chat can be enabled in the UI.
+    os.environ.setdefault("PSYCHE_NONINTERACTIVE", "1")
+
     # Open the browser after a brief delay so the server has time to bind.
     # We do this in a daemon thread so it doesn't block uvicorn startup.
     import threading

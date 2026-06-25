@@ -34,6 +34,44 @@ class ProviderResponse(BaseModel):
     db_path: str
 
 
+class ProviderConfig(BaseModel):
+    chat_provider: str  # one of: none, ollama, openai, gemini
+    api_key: Optional[str] = None
+    chat_model: Optional[str] = None
+
+
+_CHAT_PROVIDERS = {"none", "ollama", "openai", "gemini"}
+
+
+def _write_env(updates: dict) -> str:
+    """Merge key/value updates into ~/.psyche/.env, preserving existing lines."""
+    from llm_client import resolve_env_path
+
+    path = resolve_env_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    existing: dict[str, str] = {}
+    order: list[str] = []
+    if os.path.exists(path):
+        with open(path) as f:
+            for line in f:
+                raw = line.strip()
+                if not raw or raw.startswith("#") or "=" not in raw:
+                    continue
+                k, v = raw.split("=", 1)
+                k = k.strip()
+                if k not in existing:
+                    order.append(k)
+                existing[k] = v.strip()
+    for k, v in updates.items():
+        if k not in existing:
+            order.append(k)
+        existing[k] = v
+    with open(path, "w") as f:
+        for k in order:
+            f.write(f"{k}={existing[k]}\n")
+    return path
+
+
 @router.get("/provider", response_model=ProviderResponse)
 def get_provider(request: Request):
     st = get_state(request)
@@ -42,6 +80,75 @@ def get_provider(request: Request):
         chat_provider=getattr(st.llm, "chat_provider", st.llm.provider),
         embed_model=st.llm.embed_model,
         chat_model=st.llm.chat_model,
+        db_path=st.db_path,
+    )
+
+
+@router.post("/provider", response_model=ProviderResponse)
+def set_provider(body: ProviderConfig, request: Request):
+    """Configure the CHAT provider from the browser. Embeddings always stay
+    local (LLM_PROVIDER=local) so no re-embedding is ever triggered. Hot-swaps
+    the live LLMClient so /chat works immediately without a restart.
+    """
+    chat_provider = (body.chat_provider or "none").lower()
+    if chat_provider not in _CHAT_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unsupported chat provider: {chat_provider}")
+
+    st = get_state(request)
+    from llm_client import resolve_env_path
+
+    # Pre-validate that a cloud provider will have a usable key (from the request
+    # or already stored) BEFORE touching .env, so a rejected request can never
+    # leave the env in a state that bricks the next startup.
+    if chat_provider in ("gemini", "openai"):
+        env_key = "GEMINI_API_KEY" if chat_provider == "gemini" else "OPENAI_API_KEY"
+        if not (body.api_key and body.api_key.strip()) and not os.getenv(env_key):
+            raise HTTPException(status_code=400, detail=f"{chat_provider} chat needs an API key.")
+
+    # Keep embeddings local; only change chat wiring.
+    updates = {"LLM_PROVIDER": "local", "CHAT_PROVIDER": chat_provider}
+    if body.chat_model:
+        updates["CHAT_MODEL"] = body.chat_model
+    if body.api_key and body.api_key.strip():
+        if chat_provider == "gemini":
+            updates["GEMINI_API_KEY"] = body.api_key.strip()
+        elif chat_provider == "openai":
+            updates["OPENAI_API_KEY"] = body.api_key.strip()
+
+    # Back up the existing .env so we can roll back if the new config is invalid.
+    env_path = resolve_env_path()
+    prev_bytes = None
+    if os.path.exists(env_path):
+        with open(env_path, "rb") as f:
+            prev_bytes = f.read()
+
+    _write_env(updates)
+
+    from dotenv import load_dotenv
+    from llm_client import LLMClient
+    load_dotenv(env_path, override=True)
+
+    try:
+        new_llm = LLMClient()
+    except ValueError as exc:
+        # Roll back the env and reload the previous config.
+        if prev_bytes is not None:
+            with open(env_path, "wb") as f:
+                f.write(prev_bytes)
+        elif os.path.exists(env_path):
+            os.remove(env_path)
+        load_dotenv(env_path, override=True) if os.path.exists(env_path) else None
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    st.llm = new_llm
+    from web.state import refresh_search_state
+    refresh_search_state(st)
+
+    return ProviderResponse(
+        provider=new_llm.provider,
+        chat_provider=getattr(new_llm, "chat_provider", new_llm.provider),
+        embed_model=new_llm.embed_model,
+        chat_model=new_llm.chat_model,
         db_path=st.db_path,
     )
 

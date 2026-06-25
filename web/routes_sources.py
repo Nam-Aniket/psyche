@@ -64,9 +64,11 @@ def delete_source(source_id: int, request: Request):
         if cur.fetchone() is None:
             raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
         remove_source(conn, source_id, db_path=st.db_path)
-        return DeleteResponse(deleted=1)
     finally:
         conn.close()
+    from web.state import refresh_search_state
+    refresh_search_state(st)
+    return DeleteResponse(deleted=1)
 
 
 @router.delete("/sources", response_model=DeleteResponse)
@@ -80,9 +82,11 @@ def clear_sources(request: Request):
         ids = [row[0] for row in cur.fetchall()]
         for sid in ids:
             remove_source(conn, sid, db_path=st.db_path)
-        return DeleteResponse(deleted=len(ids))
     finally:
         conn.close()
+    from web.state import refresh_search_state
+    refresh_search_state(st)
+    return DeleteResponse(deleted=len(ids))
 
 
 # ── Response model for dedup check ────────────────────────────────────────────
@@ -204,8 +208,10 @@ def ingest_file(body: IngestRequest, request: Request):
     finally:
         conn.close()
 
-    # ── 6. Rebuild on-disk index (process restart needed to refresh in-memory state) ─
+    # ── 6. Rebuild on-disk index and refresh live in-memory state ─
     build_or_update_usearch_index(st.db_path)
+    from web.state import refresh_search_state
+    refresh_search_state(st)
 
     return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
 
@@ -302,6 +308,8 @@ async def ingest_upload(
             conn.close()
 
         build_or_update_usearch_index(st.db_path)
+        from web.state import refresh_search_state
+        refresh_search_state(st)
         return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
 
     finally:
