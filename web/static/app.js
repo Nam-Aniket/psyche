@@ -806,26 +806,35 @@
 
   // ── Chat ────────────────────────────────────────────────────────────────────
   let chatStreamEl = null, chatInputEl = null;
+  const CHAT_SUGGESTIONS = ['What is in my library?', 'Summarize the key ideas.', 'What connects these concepts?'];
   function buildChat() {
     const screen = h('div', { class: 'screen screen--flush' });
     screen.appendChild(h('div', { class: 'chat-head' }, h('div', { class: 'chat-narrow' }, h('div', { class: 'section__kicker' }, 'Ask'), h('h1', {}, 'Cited answers from your documents'))));
     chatStreamEl = h('div', { class: 'chat-stream' });
     screen.appendChild(h('div', { class: 'chat-scroll', id: 'chat-scroll' }, chatStreamEl));
-    const suggestions = ['What is in my library?', 'Summarize the key ideas.', 'What connects these concepts?'];
-    const suggestRow = h('div', { class: 'suggest-row', id: 'suggest-row' }, suggestions.map((t) => h('button', { class: 'btn btn--chip', onClick: () => sendChat(t) }, t)));
     chatInputEl = h('input', { placeholder: 'Ask anything about your documents…', 'aria-label': 'Ask a question about your documents', onKeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
     screen.appendChild(h('div', { class: 'chat-foot' }, h('div', { class: 'chat-narrow' },
-      suggestRow,
       h('div', { class: 'chat-input-bar' }, chatInputEl, h('button', { class: 'chat-send', 'aria-label': 'Send message', onClick: () => sendChat() }, icon(ICONS.arrow, 19, 2.1))),
       h('div', { class: 'chat-disclaimer' }, 'Answers are grounded only in your indexed sources · nothing leaves this machine'))));
     drawChat();
     return screen;
   }
+  function chatEmptyState() {
+    return h('div', { class: 'chat-empty' },
+      h('div', { class: 'chat-empty__mark' }),
+      h('h2', {}, 'Ask your library anything'),
+      h('p', {}, 'Every answer is pulled straight from your indexed documents, with citations. Nothing leaves your machine.'),
+      h('div', { class: 'suggest-row' }, CHAT_SUGGESTIONS.map((t) => h('button', { class: 'btn btn--chip', onClick: () => sendChat(t) }, t))));
+  }
   function drawChat() {
     if (!chatStreamEl) return; clear(chatStreamEl);
-    state.chat.forEach((m) => chatStreamEl.appendChild(m.role === 'user' ? userMsg(m) : assistantMsg(m)));
-    if (state.thinking) chatStreamEl.appendChild(thinkingMsg());
-    const sr = document.getElementById('suggest-row'); if (sr) sr.style.display = state.chat.length || state.thinking ? 'none' : 'flex';
+    if (!state.chat.length && !state.thinking) {
+      chatStreamEl.appendChild(chatEmptyState());
+    } else {
+      state.chat.forEach((m) => chatStreamEl.appendChild(m.role === 'user' ? userMsg(m) : assistantMsg(m)));
+      if (state.thinking) chatStreamEl.appendChild(thinkingMsg());
+      const last = chatStreamEl.lastElementChild; if (last) last.classList.add('msg-in'); // only the newest animates
+    }
     const sc = document.getElementById('chat-scroll'); if (sc) sc.scrollTop = sc.scrollHeight;
   }
   function userMsg(m) { return h('div', { class: 'msg--user' }, h('div', {}, m.text)); }
