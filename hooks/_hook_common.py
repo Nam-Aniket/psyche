@@ -92,3 +92,32 @@ def write_ledger(session_id: str, ids: set):
             json.dump(sorted(ids), f)
     except Exception:
         pass
+
+
+def _extract_state_path(session_id: str) -> str:
+    safe = "".join(c for c in (session_id or "unknown") if c.isalnum() or c in "-_")
+    return os.path.expanduser(f"~/.psyche/sessions/{safe}.extract.json")
+
+
+def read_extract_state(session_id: str) -> dict:
+    """Per-session watermark for incremental (Stop-hook) extraction.
+    Returns {} on first run / any failure — the gate treats this as 'never extracted'."""
+    try:
+        with open(_extract_state_path(session_id)) as f:
+            state = json.load(f)
+            return state if isinstance(state, dict) else {}
+    except Exception:
+        return {}
+
+
+def write_extract_state(session_id: str, state: dict):
+    """Writes the extraction watermark via a temp file + atomic rename."""
+    try:
+        p = _extract_state_path(session_id)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        tmp = p + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(state, f)
+        os.replace(tmp, p)
+    except Exception:
+        pass

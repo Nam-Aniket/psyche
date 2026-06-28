@@ -366,10 +366,12 @@
     const chatLine = state.llmPath === 'apikey' ? (p.chat_model && p.chat_model !== 'none' ? `${p.chat_provider} · ${p.chat_model}` : 'cloud API (set in .env)')
       : state.llmPath === 'ollama' ? 'local Ollama · offline' : 'none · MCP add_memory only';
     const connectedKeys = Object.keys(state.connected).filter((k) => state.connected[k]);
+    const memActive = connectedKeys.includes('claude-code');
     const body = h('div', { class: 'wired-panel__body' },
       h('div', { class: 'k' }, '› embeddings'), h('div', { class: 'v' }, `local ONNX · ${p.embed_model || 'bge-small'} · offline`),
       h('div', { class: 'k' }, '› chat & extraction'), h('div', { class: 'v--accent' }, chatLine),
       h('div', { class: 'k' }, '› mcp server'), h('div', { class: 'v' }, h('span', {}, 'psyche start-mcp '), h('span', { class: 'k' }, '(stdio)')),
+      h('div', { class: 'k' }, '› memory'), h('div', { class: memActive ? 'v--accent' : 'v' }, memActive ? 'auto-checkpoint ~10 min · recall on start' : 'auto-checkpoint on connect'),
       h('div', { class: 'wired-panel__rule' }), h('div', { class: 'k', style: 'margin-bottom:8px' }, '› agents'),
     );
     if (connectedKeys.length) connectedKeys.forEach((k) => { const m = CLIENT_META[k] || { name: k, target: '' }; body.appendChild(h('div', { class: 'wired-agent' }, h('span', { class: 'wired-agent__tick' }, '✓'), h('span', { style: 'flex:1' }, h('span', { class: 'wired-agent__name' }, m.name), h('br'), h('span', { class: 'wired-agent__target' }, m.target)))); });
