@@ -25,6 +25,18 @@ def main(host: str = "127.0.0.1", port: int = 8000, reload: bool = False) -> Non
     # memory all work with zero configuration; chat can be enabled in the UI.
     os.environ.setdefault("PSYCHE_NONINTERACTIVE", "1")
 
+    # Auto-wire every detected agent (Claude Code / Gemini / Codex) the first
+    # time the app is opened, so a fresh user gets automatic memory with zero
+    # manual steps. Gated by a sentinel (runs once per hook-schema version) and
+    # fully non-fatal — a wiring failure must never stop the server.
+    if os.environ.get("PSYCHE_NO_AUTOCONNECT") != "1":
+        try:
+            import connect
+            for line in connect.auto_connect():
+                print(f"psyche: {line}")
+        except Exception as e:
+            print(f"psyche: auto-connect skipped ({e})")
+
     # Open the browser after a brief delay so the server has time to bind.
     # We do this in a daemon thread so it doesn't block uvicorn startup.
     import threading

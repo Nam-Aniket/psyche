@@ -131,6 +131,49 @@ class TestConnect(unittest.TestCase):
         settings_path = os.path.expanduser("~/.claude/settings.json")
         self.assertFalse(os.path.exists(settings_path), "dry_run must not create settings.json")
 
+    def test_gemini_installs_auto_memory_hooks(self):
+        connect = self._import_connect()
+        connect.connect("gemini")
+
+        settings_path = os.path.expanduser("~/.gemini/settings.json")
+        self.assertTrue(os.path.exists(settings_path), "gemini settings.json should be created")
+        with open(settings_path) as f:
+            hooks = json.load(f)["hooks"]
+        for event in ("AfterAgent", "SessionEnd", "SessionStart", "BeforeAgent"):
+            self.assertIn(event, hooks)
+            self.assertIn("hooks", hooks[event][0]["hooks"][0]["command"])
+        # AfterAgent is Gemini's per-turn-end -> the time-gated checkpoint.
+        self.assertIn("psyche_stop.py", hooks["AfterAgent"][0]["hooks"][0]["command"])
+
+    def test_detect_clients(self):
+        connect = self._import_connect()
+        os.makedirs(os.path.expanduser("~/.claude"), exist_ok=True)
+        os.makedirs(os.path.expanduser("~/.gemini"), exist_ok=True)
+        detected = connect.detect_clients()
+        self.assertIn("claude-code", detected)
+        self.assertIn("gemini", detected)
+        self.assertNotIn("codex", detected)  # ~/.codex not created
+
+    def test_auto_connect_wires_detected_once_then_noops(self):
+        connect = self._import_connect()
+        os.makedirs(os.path.expanduser("~/.claude"), exist_ok=True)
+
+        first = connect.auto_connect()
+        self.assertTrue(any("claude-code" in a for a in first), "should wire detected Claude")
+        self.assertTrue(os.path.exists(os.path.expanduser("~/.claude/settings.json")))
+
+        # Sentinel makes a second call a no-op...
+        self.assertEqual(connect.auto_connect(), [])
+        # ...but force re-runs.
+        self.assertTrue(len(connect.auto_connect(force=True)) > 0)
+
+    def test_auto_connect_dry_run_writes_no_sentinel(self):
+        connect = self._import_connect()
+        os.makedirs(os.path.expanduser("~/.claude"), exist_ok=True)
+        connect.auto_connect(dry_run=True)
+        self.assertFalse(os.path.exists(connect._AUTOCONNECT_SENTINEL),
+                         "dry_run must not persist the sentinel")
+
     def test_codex_marker_idempotent(self):
         connect = self._import_connect()
 
