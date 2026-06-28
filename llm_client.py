@@ -70,13 +70,13 @@ def run_setup_wizard(env_path: str):
     
     # Prompt for LLM Provider
     console.print("[bold cyan]Choose your LLM / Embedding Provider:[/bold cyan]")
-    console.print("  [bold]1[/bold]) Gemini API (Recommended - requires Gemini API Key)")
-    console.print("  [bold]2[/bold]) OpenAI API (Requires OpenAI API Key)")
-    console.print("  [bold]3[/bold]) Ollama (100% Offline, Local & Free - requires local Ollama service running)")
-    console.print("  [bold]4[/bold]) Local / Offline (100% Offline, Free - uses local ONNX embeddings, no keys)")
-    console.print("  [bold]5[/bold]) AI-Free / Pure Retrieval (Offline-only, no API key, FTS5-only search)")
-    
-    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5"], default="1")
+    console.print("  [bold]4[/bold]) Local / Offline (Recommended - 100% on-device ONNX embeddings, no keys, nothing leaves your machine)")
+    console.print("  [bold]3[/bold]) Ollama (100% Offline, Local & Free - adds a local chat model; requires the Ollama service running)")
+    console.print("  [bold]1[/bold]) Gemini API (Cloud - sends text to Google; requires a Gemini API Key)")
+    console.print("  [bold]2[/bold]) OpenAI API (Cloud - sends text to OpenAI; requires an OpenAI API Key)")
+    console.print("  [bold]5[/bold]) AI-Free / Pure Retrieval (Offline-only, no embeddings, FTS5 keyword search)")
+
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5"], default="4")
     
     provider = "gemini"
     api_key = ""

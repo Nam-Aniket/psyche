@@ -821,7 +821,9 @@ def check_and_migrate_embeddings(db_path: str, llm):
         # We have a mismatch!
         from rich.console import Console
         from rich.progress import Progress
-        console = Console()
+        import sys as _sys
+        _quiet = ("unittest" in _sys.modules) or os.getenv("TESTING") == "true"
+        console = Console(quiet=_quiet)
 
         console.print(f"\n[bold yellow]🔄 Mismatched embedding model detected in database![/bold yellow]")
         console.print(f"  [dim]Database model: {db_model or 'None (legacy)'}[/dim]")

@@ -44,9 +44,12 @@ class TestConnect(unittest.TestCase):
 
         psyche = data["mcpServers"]["psyche"]
         self.assertIn("start-mcp", psyche["args"])
-        self.assertTrue(
-            psyche["command"].endswith(".venv/bin/python"),
-            f"command should end with .venv/bin/python, got {psyche['command']!r}",
+        # connect resolves the repo .venv python when present, else falls back to
+        # the running interpreter (pip/npm/global installs and CI have no .venv).
+        self.assertEqual(psyche["command"], connect._VENV_PYTHON)
+        self.assertRegex(
+            psyche["command"], r"python(\d(\.\d+)?)?(\.exe)?$",
+            f"command should point at a python executable, got {psyche['command']!r}",
         )
 
     def test_idempotent(self):

@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 
 from web.deps import get_state
-from db import get_connection
+from db import get_connection, remove_source
 
 router = APIRouter()
 
@@ -45,6 +45,48 @@ def list_sources(request: Request):
         return result
     finally:
         conn.close()
+
+
+# ── DELETE /sources/{source_id} and DELETE /sources ─────────────────────────────
+
+class DeleteResponse(BaseModel):
+    deleted: int
+
+
+@router.delete("/sources/{source_id}", response_model=DeleteResponse)
+def delete_source(source_id: int, request: Request):
+    """Removes a single source and its chunks, FTS rows, and vector-index keys."""
+    st = get_state(request)
+    conn = get_connection(st.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM sources WHERE id = ?", (source_id,))
+        if cur.fetchone() is None:
+            raise HTTPException(status_code=404, detail=f"Source {source_id} not found")
+        remove_source(conn, source_id, db_path=st.db_path)
+    finally:
+        conn.close()
+    from web.state import refresh_search_state
+    refresh_search_state(st)
+    return DeleteResponse(deleted=1)
+
+
+@router.delete("/sources", response_model=DeleteResponse)
+def clear_sources(request: Request):
+    """Removes every source from the knowledge base."""
+    st = get_state(request)
+    conn = get_connection(st.db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id FROM sources")
+        ids = [row[0] for row in cur.fetchall()]
+        for sid in ids:
+            remove_source(conn, sid, db_path=st.db_path)
+    finally:
+        conn.close()
+    from web.state import refresh_search_state
+    refresh_search_state(st)
+    return DeleteResponse(deleted=len(ids))
 
 
 # ── Response model for dedup check ────────────────────────────────────────────
@@ -166,8 +208,10 @@ def ingest_file(body: IngestRequest, request: Request):
     finally:
         conn.close()
 
-    # ── 6. Rebuild on-disk index (process restart needed to refresh in-memory state) ─
+    # ── 6. Rebuild on-disk index and refresh live in-memory state ─
     build_or_update_usearch_index(st.db_path)
+    from web.state import refresh_search_state
+    refresh_search_state(st)
 
     return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
 
@@ -264,6 +308,8 @@ async def ingest_upload(
             conn.close()
 
         build_or_update_usearch_index(st.db_path)
+        from web.state import refresh_search_state
+        refresh_search_state(st)
         return IngestResponse(source_id=source_id, chunk_count=len(chunks), skipped=False)
 
     finally:
