@@ -40,7 +40,7 @@
     trash: ['M4 7l1.5 12.5A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5L20 7', 'M2 7h20M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2'],
   };
   function navIconFor(key) {
-    const m = { setup: ICONS.gear, upload: ICONS.upload, graph: 'M6 6a2 2 0 1 0 0 .01M18 9a2 2 0 1 0 0 .01M9 18a2 2 0 1 0 0 .01M8 7l8 1.4M7.6 16.2l1.8-7.6', chat: ICONS.chat };
+    const m = { setup: ICONS.gear, upload: ICONS.upload, graph: 'M6 6a2 2 0 1 0 0 .01M18 9a2 2 0 1 0 0 .01M9 18a2 2 0 1 0 0 .01M8 7l8 1.4M7.6 16.2l1.8-7.6', chat: ICONS.chat, memory: 'M12 3a4 4 0 0 0-4 4 3 3 0 0 0-1 5.8V17a3 3 0 0 0 5 2.2A3 3 0 0 0 17 17v-4.2A3 3 0 0 0 16 7a4 4 0 0 0-4-4ZM12 3v16' };
     return icon(m[key], 16);
   }
   function themeIcon() { const e = icon(ICONS.sun, 17); e.insertBefore(s('circle', { cx: 12, cy: 12, r: 4 }), e.firstChild); return e; }
@@ -72,13 +72,15 @@
     provider: null, sources: [], nodes: [], edges: [],
     currentScreen: null, connected: {}, llmPath: 'agent',
     chat: [], thinking: false, ingesting: [], loadedApp: false,
+    memories: [], memStats: null, memNodes: [], memEdges: [], memQuery: '', memView: 'list',
   };
-  const SCREENS = ['setup', 'upload', 'graph', 'chat'];
+  const SCREENS = ['setup', 'upload', 'graph', 'chat', 'memory'];
   const SCREEN_META = {
     setup: { tab: 'Setup', kicker: 'Setup', title: 'Connect your agents' },
     upload: { tab: 'Upload', kicker: 'Sources', title: 'Your library' },
     graph: { tab: 'Graph', kicker: 'Knowledge graph', title: 'Concepts & connections' },
     chat: { tab: 'Chat', kicker: 'Ask', title: 'Ask your library' },
+    memory: { tab: 'Memory', kicker: 'Memory', title: 'What Psyche remembers' },
   };
   let currentScreen = null;
 
@@ -245,12 +247,13 @@
     if (key === 'setup') return buildSetup();
     if (key === 'upload') return buildUpload();
     if (key === 'graph') return buildGraph();
+    if (key === 'memory') return buildMemory();
     return buildChat();
   }
   function showScreen(key, animate) {
     const host = document.getElementById('screen-host'); if (!host) return;
     const dir = SCREENS.indexOf(key) >= SCREENS.indexOf(currentScreen || 'setup') ? 'down' : 'up';
-    if (currentScreen === 'graph' && graph) { graph.dispose(); graph = null; }
+    if (graph) { graph.dispose(); graph = null; }
     currentScreen = key;
     SCREENS.forEach((k) => { const t = document.getElementById('tab-' + k); if (t) { const on = k === key; t.classList.toggle('is-active', on); t.setAttribute('aria-selected', on ? 'true' : 'false'); } });
     const node = buildScreen(key);
@@ -262,7 +265,7 @@
   function refreshCurrent() {
     if (state.screen !== 'app' || !currentScreen) return;
     const host = document.getElementById('screen-host'); if (!host) return;
-    if (currentScreen === 'graph' && graph) { graph.dispose(); graph = null; }
+    if (graph) { graph.dispose(); graph = null; }
     host.replaceChildren(buildScreen(currentScreen));
     updateStatChip();
   }
@@ -546,11 +549,12 @@
     return { groupOf: out, count: groups.length };
   }
 
-  function createGraphEngine(bodyEl, controlsEl) {
-    const concepts = state.nodes.map((n) => ({ id: n.id, name: n.name, label: n.name, cat: n.category || 'general', def: n.definition || 'No definition available.' }));
+  function createGraphEngine(bodyEl, controlsEl, nodesData, edgesData) {
+    const srcNodes = nodesData || state.nodes, srcEdges = edgesData || state.edges;
+    const concepts = srcNodes.map((n) => ({ id: n.id, name: n.name, label: n.name, cat: n.category || 'general', def: n.definition || 'No definition available.' }));
     const byName = {}; concepts.forEach((c) => (byName[c.name] = c));
     const links = [];
-    state.edges.forEach((e) => { const sc = byName[e.source], tc = byName[e.target]; if (!sc || !tc || sc.id === tc.id) return; links.push({ s: sc.id, t: tc.id, rel: e.relationship || 'relates to' }); });
+    srcEdges.forEach((e) => { const sc = byName[e.source], tc = byName[e.target]; if (!sc || !tc || sc.id === tc.id) return; links.push({ s: sc.id, t: tc.id, rel: e.relationship || 'relates to' }); });
     const degMap = {}; links.forEach((l) => { degMap[l.s] = (degMap[l.s] || 0) + 1; degMap[l.t] = (degMap[l.t] || 0) + 1; });
     const degree = (id) => degMap[id] || 0;
     const maxDeg = Math.max(1, ...concepts.map((c) => degree(c.id)));
@@ -922,6 +926,111 @@
         } catch (e2) { state.chat.push({ role: 'assistant', text: 'Search failed: ' + (e2.detail || e2.message) }); }
       } else state.chat.push({ role: 'assistant', text: 'Something went wrong: ' + (e.detail || e.message) });
     } finally { state.thinking = false; drawChat(); }
+  }
+
+  // ── Memory ──────────────────────────────────────────────────────────────────
+  function catHue(cat) {
+    const key = String(cat || 'general').toLowerCase();
+    if (KNOWN_HUE[key] != null) return KNOWN_HUE[key];
+    let hsum = 0; for (let i = 0; i < key.length; i++) hsum = (hsum * 31 + key.charCodeAt(i)) >>> 0;
+    return FALLBACK_HUES[hsum % FALLBACK_HUES.length];
+  }
+  function memDate(iso) {
+    if (!iso) return '';
+    try { return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }); }
+    catch (_) { return String(iso).slice(0, 10); }
+  }
+  function memChip(cat) {
+    const H = catHue(cat);
+    return h('span', { class: 'mem-chip', style: `--chip:${baseForHue(H)}` }, catLabel(cat || 'general'));
+  }
+  function memCard(m) {
+    const meta = h('div', { class: 'mem-card__meta' }, memChip(m.category));
+    if (m.project) meta.appendChild(h('span', { class: 'mem-card__proj' }, m.project));
+    meta.appendChild(h('span', { class: 'mem-card__date' }, memDate(m.updated_at)));
+    return h('div', { class: 'mem-card' }, h('div', { class: 'mem-card__fact' }, m.fact || ''), meta);
+  }
+  function memEmpty(msg) {
+    return h('div', { class: 'empty-state', style: 'max-width:460px;margin:30px auto;border:0;background:transparent' },
+      h('div', { class: 'empty-state__icon' }, navIconFor('memory')),
+      h('h3', {}, 'No memories yet'),
+      h('p', {}, msg || 'As your connected agents work, Psyche checkpoints durable facts here automatically — every ~10 minutes and at the end of each session.'));
+  }
+  function drawMemoryBody() {
+    const body = document.getElementById('memory-body'); if (!body) return;
+    updateMemStats();
+    if (graph) { graph.dispose(); graph = null; }
+    if (state.memView === 'graph') {
+      if (!state.memNodes.length) { body.replaceChildren(memEmpty('No entity graph yet — once a few memories share entities, they connect here.')); return; }
+      const controls = h('div', { class: 'graph-controls' });
+      const wrap = h('div', { class: 'graph-body', style: 'min-height:540px;position:relative' });
+      body.replaceChildren(h('div', { class: 'mem-graph-head' }, controls), wrap);
+      graph = createGraphEngine(wrap, controls, state.memNodes, state.memEdges);
+      return;
+    }
+    const rows = state.memQuery ? state.memSearch : state.memories;
+    if (!rows || !rows.length) { body.replaceChildren(state.memQuery ? memEmpty('No memories match that search.') : memEmpty()); return; }
+    const list = h('div', { class: 'mem-list' });
+    rows.forEach((m) => list.appendChild(memCard(m)));
+    body.replaceChildren(list);
+  }
+  async function ensureMemoryData(force) {
+    if (state.memLoaded && !force) return;
+    const [list, stats, g] = await Promise.all([
+      api.get('/memory/list?limit=200').catch(() => []),
+      api.get('/memory/stats').catch(() => null),
+      api.get('/memory/graph').catch(() => ({ nodes: [], edges: [] })),
+    ]);
+    state.memories = list || []; state.memStats = stats;
+    state.memNodes = (g && g.nodes) || []; state.memEdges = (g && g.edges) || [];
+    state.memLoaded = true;  // set only after data is in, so an early re-nav refetches
+    if (currentScreen === 'memory') drawMemoryBody();
+  }
+  function updateMemStats() {
+    const el = document.getElementById('mem-stats'); if (!el) return;
+    const s = state.memStats;
+    clear(el);
+    if (!s) return;
+    el.appendChild(h('span', { class: 'stat-chip__dot' }));
+    el.appendChild(document.createTextNode(`${s.total} memories`));
+    const cats = Object.entries(s.by_category || {}).filter(([k]) => k && k !== '(none)').slice(0, 4);
+    cats.forEach(([k, v]) => el.appendChild(h('span', { class: 'mem-stat__cat' }, `${catLabel(k)} ${v}`)));
+  }
+  async function runMemorySearch(q) {
+    state.memQuery = (q || '').trim();
+    const cb = document.getElementById('mem-clear'); if (cb) cb.style.display = state.memQuery ? '' : 'none';
+    if (!state.memQuery) { state.memSearch = []; drawMemoryBody(); return; }
+    state.memView = 'list';
+    try { state.memSearch = await api.post('/memory/search', { query: state.memQuery, top: 30 }); }
+    catch (e) { state.memSearch = []; toast(e.detail || e.message, true); }
+    drawMemoryBody();
+  }
+  function buildMemory() {
+    const screen = h('div', { class: 'screen' });
+    const stats = h('div', { class: 'stat-chip mem-stats', id: 'mem-stats' });
+    const head = screenHead('memory', stats);
+
+    const input = h('input', { class: 'mem-search__input', type: 'search', placeholder: 'Search what Psyche remembers…', value: state.memQuery || '',
+      onKeydown: (e) => { if (e.key === 'Enter') runMemorySearch(e.currentTarget.value); } });
+    const clearBtn = h('button', { class: 'btn btn--soft mem-search__clear', id: 'mem-clear',
+      style: state.memQuery ? '' : 'display:none', onClick: () => { input.value = ''; runMemorySearch(''); } }, 'Clear');
+    const searchRow = h('div', { class: 'mem-search' }, icon(ICONS.search || 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3', 16),
+      input, clearBtn);
+
+    const mkToggle = (key, label) => h('button', { class: 'mem-toggle__btn' + (state.memView === key ? ' is-active' : ''),
+      onClick: () => { if (state.memView !== key) { state.memView = key; refreshMemToggle(); drawMemoryBody(); } } }, label);
+    const toggle = h('div', { class: 'mem-toggle', id: 'mem-toggle' }, mkToggle('list', 'List'), mkToggle('graph', 'Graph'));
+
+    const toolbar = h('div', { class: 'mem-toolbar' }, searchRow, toggle);
+    const body = h('div', { class: 'mem-body', id: 'memory-body' });
+    screen.append(head, toolbar, body);
+
+    updateMemStats(); drawMemoryBody();
+    ensureMemoryData();
+    return screen;
+  }
+  function refreshMemToggle() {
+    document.querySelectorAll('#mem-toggle .mem-toggle__btn').forEach((b) => b.classList.toggle('is-active', b.textContent.toLowerCase() === state.memView));
   }
 
   // ── boot ──────────────────────────────────────────────────────────────────
