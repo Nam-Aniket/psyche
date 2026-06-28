@@ -85,6 +85,52 @@ class TestConnect(unittest.TestCase):
         self.assertFalse(os.path.exists(config_path), "config.toml must not be created on dry_run")
         self.assertFalse(os.path.exists(agents_path), "AGENTS.md must not be created on dry_run")
 
+    def test_claude_code_installs_auto_memory_hooks(self):
+        connect = self._import_connect()
+        connect.connect("claude-code")
+
+        settings_path = os.path.expanduser("~/.claude/settings.json")
+        with open(settings_path, "r") as f:
+            data = json.load(f)
+
+        hooks = data["hooks"]
+        # Every lifecycle event Psyche manages is wired.
+        for event in ("Stop", "PreCompact", "SessionEnd", "SessionStart", "UserPromptSubmit"):
+            self.assertIn(event, hooks, f"{event} hook should be installed")
+            cmd = hooks[event][0]["hooks"][0]["command"]
+            self.assertIn("hooks", cmd)
+        # Stop drives the time-gated checkpoint.
+        self.assertIn("psyche_stop.py", hooks["Stop"][0]["hooks"][0]["command"])
+        # Flush events reuse the full extractor.
+        self.assertIn("psyche_extract.py", hooks["SessionEnd"][0]["hooks"][0]["command"])
+
+    def test_claude_code_hooks_preserve_foreign_and_dont_duplicate(self):
+        connect = self._import_connect()
+        settings_path = os.path.expanduser("~/.claude/settings.json")
+        os.makedirs(os.path.dirname(settings_path), exist_ok=True)
+        foreign = {"hooks": [{"type": "command", "command": "/usr/bin/other-tool"}]}
+        with open(settings_path, "w") as f:
+            json.dump({"hooks": {"Stop": [foreign]}}, f)
+
+        connect.connect("claude-code")
+        connect.connect("claude-code")  # second call must not duplicate
+
+        with open(settings_path, "r") as f:
+            data = json.load(f)
+
+        stop_groups = data["hooks"]["Stop"]
+        # Foreign hook survives.
+        self.assertIn(foreign, stop_groups)
+        # Exactly one Psyche group despite two connects.
+        psyche_groups = [g for g in stop_groups if connect._is_psyche_group(g)]
+        self.assertEqual(len(psyche_groups), 1, "Psyche Stop hook must not duplicate")
+
+    def test_dry_run_writes_no_hooks(self):
+        connect = self._import_connect()
+        connect.connect("claude-code", dry_run=True)
+        settings_path = os.path.expanduser("~/.claude/settings.json")
+        self.assertFalse(os.path.exists(settings_path), "dry_run must not create settings.json")
+
     def test_codex_marker_idempotent(self):
         connect = self._import_connect()
 

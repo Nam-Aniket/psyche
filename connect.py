@@ -118,6 +118,72 @@ def _append_marked_block(
     return f"appended psyche protocol block to {path}"
 
 
+_HOOKS_DIR = os.path.join(_REPO, "hooks")
+
+# Claude Code lifecycle event -> hook script. Stop drives the time-gated
+# (~10 min) incremental checkpoint; PreCompact/SessionEnd flush at the end;
+# SessionStart/UserPromptSubmit inject relevant memories back into context.
+_CLAUDE_HOOKS = {
+    "Stop": "psyche_stop.py",
+    "PreCompact": "psyche_extract.py",
+    "SessionEnd": "psyche_extract.py",
+    "SessionStart": "psyche_session_start.py",
+    "UserPromptSubmit": "psyche_prompt_submit.py",
+}
+
+
+def _hook_command(script: str) -> str:
+    """Absolute command Claude Code runs for a hook. Quoted for spaces in paths.
+    `_hook_common` puts the repo root on sys.path, so a direct script run
+    resolves both sibling (hooks/) and repo-root (memzero/llm_client) imports."""
+    return f'"{_VENV_PYTHON}" "{os.path.join(_HOOKS_DIR, script)}"'
+
+
+def _is_psyche_group(group: dict) -> bool:
+    """True if a hook group was installed by Psyche (command points at our hooks dir)."""
+    for h in (group or {}).get("hooks", []):
+        if _HOOKS_DIR in (h.get("command") or ""):
+            return True
+    return False
+
+
+def _merge_claude_hooks(path: str, dry_run: bool = False) -> str | None:
+    """Idempotently install Psyche's auto-memory hooks into Claude's settings.json.
+    Replaces any prior Psyche-tagged groups, preserves all foreign hooks, and
+    writes only when something actually changes. Returns an action string or None."""
+    if os.path.exists(path):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"Could not parse {path}: {exc}. Fix or remove that file and retry "
+                f"(a '{path}.psyche-bak' backup may already exist)."
+            )
+    else:
+        data = {}
+
+    hooks = data.get("hooks", {}) or {}
+    before = json.dumps(hooks, sort_keys=True)
+
+    for event, script in _CLAUDE_HOOKS.items():
+        # Drop our previous entries for this event; keep everyone else's.
+        groups = [g for g in hooks.get(event, []) if not _is_psyche_group(g)]
+        groups.append({"hooks": [{"type": "command", "command": _hook_command(script)}]})
+        hooks[event] = groups
+
+    if json.dumps(hooks, sort_keys=True) == before:
+        return None  # already current — nothing to do
+
+    data["hooks"] = hooks
+    if not dry_run:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+            f.write("\n")
+    return f"installed {len(_CLAUDE_HOOKS)} auto-memory hooks into {path} (10-min checkpoint + flush + recall)"
+
+
 def connect(client: str, dry_run: bool = False) -> list[str]:
     """Wires Psyche into the given client. client in {'claude-code','codex','gemini','antigravity'}
     ('antigravity' is an alias for 'gemini'). Returns a list of human-readable
@@ -136,9 +202,7 @@ def connect(client: str, dry_run: bool = False) -> list[str]:
         settings_path = os.path.expanduser("~/.claude/settings.json")
         _add(_backup_once(settings_path, dry_run=dry_run))
         _add(_merge_json_mcp(settings_path, _MCP_ENTRY, dry_run=dry_run))
-        actions.append(
-            "note: Claude Code hooks (pre-tool/post-tool) must be enabled separately via ~/.claude/settings.json hooks section"
-        )
+        _add(_merge_claude_hooks(settings_path, dry_run=dry_run))
 
     elif client == "codex":
         config_path = os.path.expanduser("~/.codex/config.toml")
