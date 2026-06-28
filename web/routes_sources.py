@@ -7,7 +7,7 @@ from fastapi import APIRouter, Request, HTTPException, File, Form, UploadFile
 from pydantic import BaseModel
 from typing import Optional, List
 
-from web.deps import get_state
+from web.deps import get_state, get_state_for
 from db import get_connection, remove_source
 
 router = APIRouter()
@@ -25,9 +25,9 @@ class SourceRecord(BaseModel):
 # ── GET /sources ───────────────────────────────────────────────────────────────
 
 @router.get("/sources", response_model=List[SourceRecord])
-def list_sources(request: Request):
+def list_sources(request: Request, topic: str = None):
     """Returns all ingested sources with per-source chunk counts."""
-    st = get_state(request)
+    st = get_state_for(request, topic)
     conn = get_connection(st.db_path)
     try:
         cur = conn.cursor()

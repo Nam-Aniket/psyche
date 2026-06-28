@@ -64,6 +64,22 @@ def refresh_search_state(state: AppState) -> AppState:
     return state
 
 
+def build_state_for_topic(topic: str, llm) -> AppState:
+    """Build an AppState for a named topic (topic_<topic>.db), reusing the shared
+    LLMClient. Mirrors build_state but skips LLM construction. A topic whose DB
+    doesn't exist yet yields an empty (but valid) state."""
+    resolved = resolve_db_path(f"topic_{topic}.db")
+    check_and_migrate_embeddings(resolved, llm)
+    chunk_ids, embeddings_matrix, usearch_index = load_search_structures(resolved, llm)
+    return AppState(
+        db_path=resolved,
+        llm=llm,
+        chunk_ids=chunk_ids,
+        embeddings_matrix=embeddings_matrix,
+        usearch_index=usearch_index,
+    )
+
+
 def build_state(db_path: Optional[str] = None) -> AppState:
     """Build and return the shared AppState for the web layer.
 

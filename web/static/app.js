@@ -73,7 +73,11 @@
     currentScreen: null, connected: {}, llmPath: 'agent',
     chat: [], thinking: false, ingesting: [], loadedApp: false,
     memories: [], memStats: null, memNodes: [], memEdges: [], memQuery: '', memView: 'list',
+    topic: '', topics: [],
   };
+  // Scope a request path/body to the active topic. Empty topic = default library.
+  const withTopic = (path) => state.topic ? path + (path.includes('?') ? '&' : '?') + 'topic=' + encodeURIComponent(state.topic) : path;
+  const topicBody = (body) => state.topic ? Object.assign({ topic: state.topic }, body) : body;
   const SCREENS = ['setup', 'upload', 'graph', 'chat', 'memory'];
   const SCREEN_META = {
     setup: { tab: 'Setup', kicker: 'Setup', title: 'Connect your agents' },
@@ -112,13 +116,15 @@
 
   // ── data loading ──────────────────────────────────────────────────────────
   async function loadAppData() {
-    const [provider, sources, nodes, edges] = await Promise.all([
+    const [provider, sources, nodes, edges, topics] = await Promise.all([
       api.get('/provider').catch(() => null),
-      api.get('/sources').catch(() => []),
-      api.get('/graph/nodes').catch(() => []),
-      api.get('/graph/edges').catch(() => []),
+      api.get(withTopic('/sources')).catch(() => []),
+      api.get(withTopic('/graph/nodes')).catch(() => []),
+      api.get(withTopic('/graph/edges')).catch(() => []),
+      api.get('/topics').catch(() => state.topics),
     ]);
     state.provider = provider; state.sources = sources || []; state.nodes = nodes || []; state.edges = edges || [];
+    state.topics = topics || state.topics;
     if (provider) state.llmPath = provider.chat_model && provider.chat_model !== 'none'
       ? (provider.chat_provider === 'ollama' || provider.provider === 'ollama' ? 'ollama' : 'apikey') : 'agent';
   }
@@ -130,6 +136,7 @@
     if (state.screen !== 'app') {
       state.screen = 'app'; currentScreen = null; render();
       if (!state.loadedApp) { try { await loadAppData(); state.loadedApp = true; } catch (e) { console.error(e); } }
+      renderTopicOptions();
       showScreen(target, false);
     } else { showScreen(target, true); }
   }
@@ -226,6 +233,7 @@
       h('div', { class: 'appbar__brand' }, brand(true)),
       tabs,
       h('div', { class: 'appbar__right' },
+        topicSwitcher(),
         h('div', { class: 'stat-chip', id: 'stat-chip' }),
         themeBtn(),
       ),
@@ -238,6 +246,32 @@
     const c = document.getElementById('stat-chip'); if (!c) return;
     clear(c);
     c.append(h('span', { class: 'stat-chip__dot' }), `${state.sources.length} sources · ${chunkTotal().toLocaleString()} chunks · ${state.nodes.length} concepts`);
+  }
+  function topicSwitcher() {
+    const sel = h('select', { class: 'topic-switch', id: 'topic-switch', 'aria-label': 'Topic library', title: 'Switch topic library',
+      onChange: (e) => switchTopic(e.target.value) });
+    renderTopicOptions(sel);
+    return sel;
+  }
+  function renderTopicOptions(sel) {
+    sel = sel || document.getElementById('topic-switch'); if (!sel) return;
+    clear(sel);
+    const list = state.topics && state.topics.length ? state.topics : [{ name: '', label: 'Default' }];
+    list.forEach((t) => {
+      const label = (t.label || t.name || 'Default') + (t.sources != null ? ` · ${t.sources}` : '');
+      const o = h('option', { value: t.name }, label);
+      if (t.name === state.topic) o.selected = true;
+      sel.appendChild(o);
+    });
+  }
+  async function switchTopic(name) {
+    if (name === state.topic) return;
+    state.topic = name;
+    state.memLoaded = false; state.memQuery = ''; state.memSearch = []; state.memView = 'list';
+    await loadAppData();
+    renderTopicOptions();
+    updateStatChip();
+    refreshCurrent();
   }
   function movePill(key) {
     const t = document.getElementById('tab-' + key), pill = document.getElementById('tab-pill');
@@ -484,7 +518,7 @@
     }
   }
   async function refreshData() {
-    const [sources, nodes, edges] = await Promise.all([api.get('/sources').catch(() => state.sources), api.get('/graph/nodes').catch(() => state.nodes), api.get('/graph/edges').catch(() => state.edges)]);
+    const [sources, nodes, edges] = await Promise.all([api.get(withTopic('/sources')).catch(() => state.sources), api.get(withTopic('/graph/nodes')).catch(() => state.nodes), api.get(withTopic('/graph/edges')).catch(() => state.edges)]);
     state.sources = sources; state.nodes = nodes; state.edges = edges; updateStatChip();
   }
   async function doRemove(id) { confirmRemove = null; try { await api.del('/sources/' + id); await refreshData(); refreshCurrent(); toast('Source removed'); } catch (e) { toast(e.detail || e.message, true); refreshCurrent(); } }
@@ -517,12 +551,12 @@
   async function buildGraphAction() {
     const btn = document.getElementById('build-graph-btn');
     if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
-    try { await api.post('/graph/build', { clusters: 6 }); await refreshData(); refreshCurrent(); toast('Concept graph built'); }
+    try { await api.post('/graph/build', topicBody({ clusters: 6 })); await refreshData(); refreshCurrent(); toast('Concept graph built'); }
     catch (e) { toast(e.detail || e.message, true); if (btn) { btn.disabled = false; btn.textContent = 'Build the graph'; } }
   }
   async function rebuildGraph(btn) {
     if (btn) { btn.disabled = true; btn.classList.add('is-busy'); clear(btn); btn.appendChild(document.createTextNode('Rebuilding…')); }
-    try { await api.post('/graph/build', { clusters: 6 }); await refreshData(); refreshCurrent(); toast('Concept graph rebuilt'); }
+    try { await api.post('/graph/build', topicBody({ clusters: 6 })); await refreshData(); refreshCurrent(); toast('Concept graph rebuilt'); }
     catch (e) { toast(e.detail || e.message, true); refreshCurrent(); }
   }
 
@@ -915,12 +949,12 @@
     state.chat.push({ role: 'user', text }); if (chatInputEl) chatInputEl.value = '';
     state.thinking = true; drawChat();
     try {
-      const r = await api.post('/chat', { query_text: text, limit: 6 });
+      const r = await api.post('/chat', topicBody({ query_text: text, limit: 6 }));
       state.chat.push({ role: 'assistant', text: r.answer || '', cites: (r.sources || []).map((hit, i) => hitToCite(hit, i + 1)) });
     } catch (e) {
       if (e.status === 503) {
         try {
-          const hits = await api.post('/search', { query_text: text, limit: 6 });
+          const hits = await api.post('/search', topicBody({ query_text: text, limit: 6 }));
           const cites = (hits || []).map((hit, i) => hitToCite(hit, i + 1));
           state.chat.push({ role: 'assistant', note: 'No chat model is configured, so here are the most relevant passages from your library (retrieval only).', text: cites.length ? 'Top matches for your question:' : 'No matching passages found in your indexed sources yet.', cites });
         } catch (e2) { state.chat.push({ role: 'assistant', text: 'Search failed: ' + (e2.detail || e2.message) }); }
@@ -977,9 +1011,9 @@
   async function ensureMemoryData(force) {
     if (state.memLoaded && !force) return;
     const [list, stats, g] = await Promise.all([
-      api.get('/memory/list?limit=200').catch(() => []),
-      api.get('/memory/stats').catch(() => null),
-      api.get('/memory/graph').catch(() => ({ nodes: [], edges: [] })),
+      api.get(withTopic('/memory/list?limit=200')).catch(() => []),
+      api.get(withTopic('/memory/stats')).catch(() => null),
+      api.get(withTopic('/memory/graph')).catch(() => ({ nodes: [], edges: [] })),
     ]);
     state.memories = list || []; state.memStats = stats;
     state.memNodes = (g && g.nodes) || []; state.memEdges = (g && g.edges) || [];
@@ -1001,7 +1035,7 @@
     const cb = document.getElementById('mem-clear'); if (cb) cb.style.display = state.memQuery ? '' : 'none';
     if (!state.memQuery) { state.memSearch = []; drawMemoryBody(); return; }
     state.memView = 'list';
-    try { state.memSearch = await api.post('/memory/search', { query: state.memQuery, top: 30 }); }
+    try { state.memSearch = await api.post('/memory/search', topicBody({ query: state.memQuery, top: 30 })); }
     catch (e) { state.memSearch = []; toast(e.detail || e.message, true); }
     drawMemoryBody();
   }

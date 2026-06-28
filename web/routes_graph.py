@@ -5,20 +5,21 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
-from web.deps import get_state
+from web.deps import get_state_for
 
 router = APIRouter()
 
 
 class GraphBuildRequest(BaseModel):
     clusters: int = 6
+    topic: str | None = None
 
 
 @router.get("/graph/nodes")
-def graph_nodes(request: Request):
+def graph_nodes(request: Request, topic: str = None):
     """Returns all concepts (nodes) in the knowledge graph."""
     from db import get_connection, get_all_concepts
-    st = get_state(request)
+    st = get_state_for(request, topic)
     conn = get_connection(st.db_path)
     try:
         nodes = get_all_concepts(conn)
@@ -28,10 +29,10 @@ def graph_nodes(request: Request):
 
 
 @router.get("/graph/edges")
-def graph_edges(request: Request):
+def graph_edges(request: Request, topic: str = None):
     """Returns all concept links (edges) in the knowledge graph."""
     from db import get_connection, get_concept_links
-    st = get_state(request)
+    st = get_state_for(request, topic)
     conn = get_connection(st.db_path)
     try:
         edges = get_concept_links(conn)
@@ -56,7 +57,7 @@ def graph_build(request: Request, body: GraphBuildRequest = GraphBuildRequest())
     from build_graph import build_concept_graph
 
     clusters = body.clusters
-    st = get_state(request)
+    st = get_state_for(request, body.topic)
 
     # Pre-flight: reject immediately if DB is empty to avoid sys.exit(1) inside
     # build_concept_graph.
