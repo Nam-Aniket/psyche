@@ -557,6 +557,65 @@ def list_entities(db_path: str = None) -> list[dict]:
     return [{"entity": r[0], "count": r[1]} for r in rows]
 
 
+def entity_graph(db_path: str = None, max_nodes: int = 60, min_cooccurrence: int = 1) -> dict:
+    """A co-occurrence graph over memory entities: nodes are entities (colored by
+    their dominant memory category), edges connect entities that appear together
+    in the same live memory. Shaped exactly like the concept graph
+    ({id,name,definition,category} nodes; {id,source,target,relationship,description}
+    edges) so the web SVG engine renders it directly. Empty graph on no data."""
+    resolved = resolve_db_path(db_path)
+    if not os.path.exists(resolved):
+        return {"nodes": [], "edges": []}
+    conn = get_connection(resolved)
+    try:
+        try:
+            top = conn.execute(
+                "SELECT e.entity, COUNT(*) c "
+                "FROM memory_entities e JOIN atomic_memories m "
+                "  ON m.id = e.memory_id AND m.superseded_by IS NULL "
+                "GROUP BY e.entity ORDER BY c DESC, e.entity LIMIT ?",
+                (max_nodes,),
+            ).fetchall()
+            if not top:
+                return {"nodes": [], "edges": []}
+            cat_rows = conn.execute(
+                "SELECT e.entity, COALESCE(m.category,'general') cat, COUNT(*) c "
+                "FROM memory_entities e JOIN atomic_memories m "
+                "  ON m.id = e.memory_id AND m.superseded_by IS NULL "
+                "GROUP BY e.entity, cat",
+            ).fetchall()
+            edge_rows = conn.execute(
+                "SELECT a.entity, b.entity, COUNT(*) c "
+                "FROM memory_entities a JOIN memory_entities b "
+                "  ON a.memory_id = b.memory_id AND a.entity < b.entity "
+                "JOIN atomic_memories m ON m.id = a.memory_id AND m.superseded_by IS NULL "
+                "GROUP BY a.entity, b.entity HAVING c >= ?",
+                (min_cooccurrence,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return {"nodes": [], "edges": []}
+    finally:
+        conn.close()
+
+    keep = {r[0] for r in top}
+    best = {}  # entity -> (count, dominant category)
+    for ent, cat, c in cat_rows:
+        if ent in keep and c > best.get(ent, (0, None))[0]:
+            best[ent] = (c, cat)
+
+    ids = {ent: i + 1 for i, (ent, _) in enumerate(top)}
+    nodes = [{"id": ids[ent], "name": ent, "definition": f"In {c} memories",
+              "category": best.get(ent, (0, "general"))[1]} for ent, c in top]
+
+    edges = []
+    for a, b, c in edge_rows:
+        if a in keep and b in keep:
+            edges.append({"id": len(edges) + 1, "source": a, "target": b,
+                          "relationship": "co-occurs",
+                          "description": f"Together in {c} memories"})
+    return {"nodes": nodes, "edges": edges}
+
+
 def list_memories(limit: int = 50, project: str = None, category: str = None,
                   include_superseded: bool = False, db_path: str = None) -> list[dict]:
     """Lists facts (live by default), newest first."""
