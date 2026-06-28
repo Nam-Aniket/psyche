@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from query import perform_hybrid_search
-from web.deps import get_state
+from web.deps import get_state_for
 
 router = APIRouter()
 
@@ -22,6 +22,7 @@ _DEFAULT_LIMIT = 5
 class SearchRequest(BaseModel):
     query_text: str
     limit: int = _DEFAULT_LIMIT
+    topic: str | None = None
 
 
 class SearchResult(BaseModel):
@@ -48,7 +49,7 @@ def search(req: SearchRequest, request: Request) -> list[SearchResult]:
         raise HTTPException(status_code=400, detail="query_text must not be empty")
 
     limit = req.limit if req.limit else _DEFAULT_LIMIT
-    st = get_state(request)
+    st = get_state_for(request, req.topic)
 
     raw = perform_hybrid_search(
         st.db_path,
@@ -84,6 +85,7 @@ from db import get_connection
 class ChatRequest(BaseModel):
     query_text: str
     limit: int = _DEFAULT_LIMIT
+    topic: str | None = None
 
 
 class ChatResponse(BaseModel):
@@ -114,7 +116,7 @@ def chat(req: ChatRequest, request: Request) -> ChatResponse:
         raise HTTPException(status_code=400, detail="query_text must not be empty")
 
     limit = req.limit if req.limit else _DEFAULT_LIMIT
-    st = get_state(request)
+    st = get_state_for(request, req.topic)
 
     # Guard: refuse synthesis when LLM chat is unavailable
     if st.llm.provider == "none" or getattr(st.llm, "chat_model", "none") == "none":

@@ -176,3 +176,37 @@ def get_connect_status(client: str, request: Request):
 @router.get("/supported-clients")
 def get_supported_clients():
     return _SUPPORTED_CLIENTS
+
+
+@router.get("/topics")
+def get_topics():
+    """Lists available topic libraries: the default (knowledge.db) plus every
+    topic_<name>.db in the Psyche data dir, with a cheap source count each.
+    Powers the global topic switcher."""
+    import sqlite3
+    from db import resolve_db_path
+
+    default_db = resolve_db_path("knowledge.db")
+    data_dir = os.path.dirname(default_db)
+
+    def _count_sources(path):
+        try:
+            conn = sqlite3.connect(path)
+            try:
+                return conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
+            finally:
+                conn.close()
+        except Exception:
+            return 0
+
+    topics = [{"name": "", "label": "Default", "is_default": True,
+               "sources": _count_sources(default_db)}]
+    try:
+        for fn in sorted(os.listdir(data_dir)):
+            if fn.startswith("topic_") and fn.endswith(".db"):
+                name = fn[len("topic_"):-len(".db")]
+                topics.append({"name": name, "label": name, "is_default": False,
+                               "sources": _count_sources(os.path.join(data_dir, fn))})
+    except OSError:
+        pass
+    return topics
