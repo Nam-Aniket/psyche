@@ -86,10 +86,18 @@ def main():
         import connect
         import argparse
         ap = argparse.ArgumentParser(prog="psyche connect")
-        ap.add_argument("client", choices=["claude-code", "codex", "gemini", "antigravity"])
+        ap.add_argument("client", nargs="?",
+                        choices=["claude-code", "codex", "gemini", "antigravity"],
+                        help="agent to wire; omit to auto-wire every detected agent")
         ap.add_argument("--dry-run", action="store_true")
         a = ap.parse_args()
-        for line in connect.connect(a.client, dry_run=a.dry_run):
+        if a.client:
+            lines = connect.connect(a.client, dry_run=a.dry_run)
+        else:
+            lines = connect.auto_connect(force=True, dry_run=a.dry_run)
+            if not lines:
+                lines = [f"no supported agents detected ({', '.join(connect._CLIENT_MARKERS)})"]
+        for line in lines:
             print(line)
     elif subcommand == "start-mcp":
         try:
