@@ -174,19 +174,58 @@ class TestConnect(unittest.TestCase):
         self.assertFalse(os.path.exists(connect._AUTOCONNECT_SENTINEL),
                          "dry_run must not persist the sentinel")
 
-    def test_codex_marker_idempotent(self):
+    def test_codex_fresh_produces_one_valid_table_and_notify(self):
+        import tomllib
         connect = self._import_connect()
-
         connect.connect("codex")
-        connect.connect("codex")  # second call
+        connect.connect("codex")  # idempotent
 
         config_path = os.path.expanduser("~/.codex/config.toml")
-        with open(config_path, "r") as f:
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)  # must be valid TOML
+        self.assertIn("psyche", data.get("mcp_servers", {}))
+        with open(config_path) as f:
             content = f.read()
+        self.assertEqual(content.count("[mcp_servers.psyche]"), 1, "exactly one psyche table")
+        self.assertIn("psyche_codex_notify.py", " ".join(data.get("notify", [])))
 
-        marker = "# >>> psyche (managed) >>>"
-        count = content.count(marker)
-        self.assertEqual(count, 1, f"marker should appear exactly once, found {count}")
+    def test_codex_dedupes_duplicate_and_chains_existing_notify(self):
+        import tomllib
+        connect = self._import_connect()
+        config_path = os.path.expanduser("~/.codex/config.toml")
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        # A broken config: duplicate psyche table (invalid TOML) + a custom notify.
+        with open(config_path, "w") as f:
+            f.write(
+                'notify = ["/usr/bin/orig-notify", "turn-ended"]\n\n'
+                '[mcp_servers.psyche]\ncommand = "x"\nargs = ["a"]\n\n'
+                '# >>> psyche (managed) >>>\n[mcp_servers.psyche]\ncommand = "y"\nargs = ["b"]\n# <<< psyche (managed) <<<\n'
+            )
+        connect.connect("codex")
+
+        with open(config_path, "rb") as f:
+            data = tomllib.load(f)  # now valid (de-duped)
+        with open(config_path) as f:
+            content = f.read()
+        self.assertEqual(content.count("[mcp_servers.psyche]"), 1)
+        self.assertIn("psyche_codex_notify.py", " ".join(data["notify"]))
+        # original notify preserved in the chain file
+        with open(os.path.expanduser("~/.psyche/codex_notify_chain.json")) as f:
+            chain = json.load(f)
+        self.assertEqual(chain["notify"], ["/usr/bin/orig-notify", "turn-ended"])
+
+    def test_cursor_wires_mcp(self):
+        connect = self._import_connect()
+        connect.connect("cursor")
+        mcp_path = os.path.expanduser("~/.cursor/mcp.json")
+        with open(mcp_path) as f:
+            data = json.load(f)
+        self.assertIn("psyche", data["mcpServers"])
+
+    def test_detect_includes_cursor(self):
+        connect = self._import_connect()
+        os.makedirs(os.path.expanduser("~/.cursor"), exist_ok=True)
+        self.assertIn("cursor", connect.detect_clients())
 
 
 if __name__ == "__main__":

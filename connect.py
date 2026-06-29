@@ -5,6 +5,7 @@ protocol into a supported client's config files.
 
 import json
 import os
+import re
 import shutil
 import sys
 
@@ -194,6 +195,52 @@ def _merge_agent_hooks(path: str, hook_map: dict, dry_run: bool = False) -> str 
     return f"installed {len(hook_map)} auto-memory hooks into {path} (10-min checkpoint + flush + recall)"
 
 
+_CODEX_NOTIFY_CHAIN = os.path.expanduser("~/.psyche/codex_notify_chain.json")
+
+
+def _toml_str_array(items) -> str:
+    return "[" + ", ".join(json.dumps(x) for x in items) + "]"
+
+
+def _dedupe_codex_managed_block(content: str) -> tuple[str, bool]:
+    """Remove the marker-delimited managed psyche block (the redundant one — the
+    bare [mcp_servers.psyche] table the postinstaller writes carries the better
+    -u flag and is kept). Returns (content, removed)."""
+    pat = re.compile(r"\n?# >>> psyche \(managed\) >>>.*?# <<< psyche \(managed\) <<<\n?", re.DOTALL)
+    new = pat.sub("\n", content)
+    return new, (new != content)
+
+
+def _set_codex_notify(content: str, dry_run: bool = False) -> tuple[str, str | None]:
+    """Point Codex's `notify` at the Psyche wrapper, recording (and chaining) any
+    pre-existing notify command to ~/.psyche/codex_notify_chain.json so it keeps
+    firing. Returns (content, action_or_None). Idempotent."""
+    wrapper = [_VENV_PYTHON, os.path.join(_HOOKS_DIR, "psyche_codex_notify.py")]
+    new_line = "notify = " + _toml_str_array(wrapper)
+    m = re.search(r"(?m)^[ \t]*notify[ \t]*=[ \t]*(\[.*\])[ \t]*$", content)
+
+    def _write_chain(orig):
+        if dry_run:
+            return
+        os.makedirs(os.path.dirname(_CODEX_NOTIFY_CHAIN), exist_ok=True)
+        with open(_CODEX_NOTIFY_CHAIN, "w", encoding="utf-8") as f:
+            json.dump({"notify": orig}, f)
+
+    if m:
+        cur = m.group(1)
+        if "psyche_codex_notify.py" in cur:
+            return content, None  # already ours
+        try:
+            import tomllib
+            orig = tomllib.loads("notify = " + cur).get("notify")
+        except Exception:
+            orig = None
+        _write_chain(orig)
+        return content[:m.start()] + new_line + content[m.end():], "chained Codex notify → Psyche (existing notify preserved)"
+    _write_chain(None)
+    return new_line + "\n" + content, "set Codex notify → Psyche"
+
+
 def connect(client: str, dry_run: bool = False) -> list[str]:
     """Wires Psyche into the given client. client in {'claude-code','codex','gemini','antigravity'}
     ('antigravity' is an alias for 'gemini'). Returns a list of human-readable
@@ -218,32 +265,49 @@ def connect(client: str, dry_run: bool = False) -> list[str]:
         config_path = os.path.expanduser("~/.codex/config.toml")
         agents_path = os.path.expanduser("~/.codex/AGENTS.md")
 
-        # --- config.toml ---
+        # --- config.toml: de-dupe MCP table, ensure one table, chain notify ---
         _add(_backup_once(config_path, dry_run=dry_run))
-
-        toml_block = (
-            "\n# >>> psyche (managed) >>>\n"
-            "[mcp_servers.psyche]\n"
-            f'command = "{_VENV_PYTHON}"\n'
-            f'args = ["{_CLI}", "start-mcp"]\n'
-            "# <<< psyche (managed) <<<"
-        )
-
-        marker = "# >>> psyche (managed) >>>"
-        existing_content = ""
+        content = ""
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
-                existing_content = f.read()
+                content = f.read()
+        new = content
 
-        # Skip if our marker OR a bare [mcp_servers.psyche] table already exists
-        # (the npm postinstaller writes the bare table) — appending a second one
-        # corrupts the TOML.
-        if marker not in existing_content and "[mcp_servers.psyche]" not in existing_content:
-            if not dry_run:
-                os.makedirs(os.path.dirname(config_path) or ".", exist_ok=True)
-                with open(config_path, "a", encoding="utf-8") as f:
-                    f.write(toml_block + "\n")
-            actions.append(f"appended psyche MCP block to {config_path}")
+        # 1. Remove any duplicate managed psyche block (keeps the bare -u table).
+        new, removed = _dedupe_codex_managed_block(new)
+        if removed:
+            actions.append(f"removed duplicate psyche MCP block from {config_path}")
+
+        # 2. Ensure exactly one psyche MCP table exists (use the -u, unbuffered form).
+        if "[mcp_servers.psyche]" not in new:
+            table = (
+                "[mcp_servers.psyche]\n"
+                f'command = "{_VENV_PYTHON}"\n'
+                f'args = ["-u", "{_CLI}", "start-mcp"]\n'
+            )
+            new = new.rstrip() + "\n\n" + table
+            actions.append(f"added psyche MCP table to {config_path}")
+
+        # 3. Chain Codex's notify through the Psyche wrapper for auto-memory.
+        new, notify_action = _set_codex_notify(new, dry_run=dry_run)
+        _add(notify_action)
+
+        # 4. Write + validate (restore the backup if we somehow produced bad TOML).
+        if new != content and not dry_run:
+            os.makedirs(os.path.dirname(config_path) or ".", exist_ok=True)
+            with open(config_path, "w", encoding="utf-8") as f:
+                f.write(new)
+            try:
+                import tomllib
+                with open(config_path, "rb") as f:
+                    tomllib.load(f)
+            except Exception as exc:
+                bak = config_path + ".psyche-bak"
+                if os.path.exists(bak):
+                    shutil.copy2(bak, config_path)
+                raise ValueError(
+                    f"Codex config edit produced invalid TOML ({exc}); restored backup {bak}."
+                )
 
         # --- AGENTS.md ---
         _add(
@@ -255,6 +319,13 @@ def connect(client: str, dry_run: bool = False) -> list[str]:
                 dry_run=dry_run,
             )
         )
+
+    elif client == "cursor":
+        # Cursor is MCP-capable but has no lifecycle hooks, so memory is
+        # MCP-tool-driven (the model calls add_memory / search_memories).
+        mcp_path = os.path.expanduser("~/.cursor/mcp.json")
+        _add(_backup_once(mcp_path, dry_run=dry_run))
+        _add(_merge_json_mcp(mcp_path, _MCP_ENTRY, dry_run=dry_run))
 
     elif client == "gemini":
         mcp_config_path = os.path.expanduser("~/.gemini/config/mcp_config.json")
@@ -279,7 +350,7 @@ def connect(client: str, dry_run: bool = False) -> list[str]:
 
     else:
         raise ValueError(
-            f"Unknown client {client!r}. Choices: claude-code, codex, gemini, antigravity"
+            f"Unknown client {client!r}. Choices: claude-code, codex, gemini, antigravity, cursor"
         )
 
     return actions
@@ -294,6 +365,7 @@ _CLIENT_MARKERS = {
     "claude-code": "~/.claude",
     "codex": "~/.codex",
     "gemini": "~/.gemini",
+    "cursor": "~/.cursor",
 }
 
 
