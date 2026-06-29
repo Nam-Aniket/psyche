@@ -8,6 +8,7 @@ os.environ["PSYCHE_NONINTERACTIVE"] = "1"
 import json
 import hashlib
 import re
+import threading
 import traceback
 
 # Single source of truth for the Psyche version. pyproject.toml, package.json,
@@ -249,9 +250,11 @@ def append_memory_archival_tool(text: str, topic: str = None, author: str = "Ass
 def main():
     log("Server starting on stdio transport...")
 
-    # Pre-warm the reranker model so the first search request does not pay the
-    # model load cost inside the tool call (which can trip client timeouts).
-    prewarm_reranker()
+    # Pre-warm the reranker in a background thread so the first search request
+    # does not pay the model load cost. It MUST NOT run before the read loop:
+    # a cold model load (new machine, empty cache) would block the `initialize`
+    # handshake past the client's connect timeout and show up as "disconnected".
+    threading.Thread(target=prewarm_reranker, daemon=True).start()
 
     while True:
         try:

@@ -2,6 +2,7 @@
 import os
 import sys
 import sqlite3
+import threading
 import argparse
 import numpy as np
 from dotenv import load_dotenv
@@ -28,24 +29,31 @@ load_dotenv()
 
 _ranker = None
 _ranker_loaded = False
+_ranker_lock = threading.Lock()
 
 def get_ranker():
     global _ranker, _ranker_loaded
     if _ranker_loaded:
         return _ranker
-        
-    rerank_provider = os.getenv("RERANK_PROVIDER", "flashrank").lower()
-    if rerank_provider == "none":
+
+    # Lock so a background prewarm thread and a concurrent first tool call can't
+    # both construct the (slow) reranker — double-checked under the lock.
+    with _ranker_lock:
+        if _ranker_loaded:
+            return _ranker
+
+        rerank_provider = os.getenv("RERANK_PROVIDER", "flashrank").lower()
+        if rerank_provider == "none":
+            _ranker_loaded = True
+            return None
+
+        try:
+            from flashrank import Ranker
+            _ranker = Ranker()
+        except Exception:
+            pass
         _ranker_loaded = True
-        return None
-        
-    try:
-        from flashrank import Ranker
-        _ranker = Ranker()
-    except Exception:
-        pass
-    _ranker_loaded = True
-    return _ranker
+        return _ranker
 
 def prewarm_reranker():
     """Eagerly triggers the lazy reranker initialization (model download/load).
