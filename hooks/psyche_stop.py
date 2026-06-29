@@ -50,16 +50,33 @@ def should_extract(*, now, last_ts, turn_count, last_turn_count,
     return (turn_count - last_turn_count) >= min_turns and grew
 
 
+# If a spawned worker never clears the in-flight flag (killed, EPERM, hang),
+# the session unwedges after this many seconds and the next Stop retries.
+INFLIGHT_TTL = 300
+
+
 def _run_worker():
-    """Detached worker: do the actual (slow) extraction, then exit."""
+    """Detached worker: run the (slow) extraction. On SUCCESS, commit the target
+    watermark so this window isn't re-extracted; on FAILURE, leave the previous
+    watermark intact so the next Stop retries it (no silent data loss). Either
+    way the in-flight lock is cleared so the session isn't wedged."""
     payload_path = os.environ.get("PSYCHE_STOP_WORKER", "")
     try:
         with open(payload_path) as f:
             payload = json.load(f)
     except Exception:
         return
+    session_id = payload.get("session_id", "")
+    watermark = payload.get("_watermark")
     try:
         extract_facts(payload, source="stop")
+        if watermark:                       # success: advance + clear in-flight
+            hc.write_extract_state(session_id, watermark)
+    except Exception as e:
+        hc.log(f"stop {session_id}: extraction failed, will retry next turn: {e}")
+        st = hc.read_extract_state(session_id)   # keep old watermark, drop lock
+        st.pop("inflight_ts", None)
+        hc.write_extract_state(session_id, st)
     finally:
         try:
             os.unlink(payload_path)
@@ -90,6 +107,14 @@ def main():
     transcript_len = len(transcript_text(path))
     now = time.time()
 
+    # In-flight guard: if a worker for this session is already running (recent),
+    # don't spawn another. The watermark stays un-advanced, so nothing is skipped
+    # while we wait — this both throttles pile-ups and replaces the old
+    # advance-on-spawn behaviour that silently lost data when a worker failed.
+    inflight_ts = state.get("inflight_ts")
+    if inflight_ts and (now - inflight_ts) < INFLIGHT_TTL:
+        return
+
     if not should_extract(
         now=now,
         last_ts=state.get("last_ts"),
@@ -103,26 +128,29 @@ def main():
     ):
         return
 
-    # Gate passed: spawn a detached worker, advance the watermark immediately
-    # (prevents the next few turns from each re-triggering), and return fast.
+    # Gate passed: spawn a detached worker carrying the TARGET watermark, and mark
+    # the session in-flight. The watermark is committed by the worker only on a
+    # successful extraction, so a failed/killed worker is retried next turn.
     try:
+        watermark = {"last_ts": now, "last_turn_count": turn_count, "last_len": transcript_len}
+        payload["_watermark"] = watermark
         fd, tmp = tempfile.mkstemp(prefix="psyche_stop_", suffix=".json")
         with os.fdopen(fd, "w") as f:
             json.dump(payload, f)
+        # Mark in-flight BEFORE spawning so the worker always sees & clears it.
+        hc.write_extract_state(session_id, {**state, "inflight_ts": now})
         subprocess.Popen(
             [sys.executable, os.path.abspath(__file__)],
             env={**os.environ, "PSYCHE_STOP_WORKER": tmp},
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL, start_new_session=True, cwd="/tmp",
         )
-        hc.write_extract_state(session_id, {
-            "last_ts": now,
-            "last_turn_count": turn_count,
-            "last_len": transcript_len,
-        })
         hc.log(f"stop {session_id}: gate passed, worker spawned "
                f"(turns={turn_count}, len={transcript_len})")
     except Exception as e:
+        st = hc.read_extract_state(session_id)   # spawn failed: drop the lock
+        st.pop("inflight_ts", None)
+        hc.write_extract_state(session_id, st)
         hc.log(f"stop {session_id}: worker spawn failed: {e}")
 
 

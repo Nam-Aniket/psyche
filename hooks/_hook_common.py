@@ -24,8 +24,10 @@ def recursion_guard():
 
 def log(msg: str):
     try:
+        import time
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S")
         with open(LOG_PATH, "a") as f:
-            f.write(msg.rstrip() + "\n")
+            f.write(f"{ts} {msg.rstrip()}\n")
     except Exception:
         pass
 

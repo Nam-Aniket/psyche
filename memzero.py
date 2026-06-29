@@ -282,15 +282,25 @@ def extract_and_store(transcript_text: str, agent_id: str = None, run_id: str = 
     transcript_text = (transcript_text or "").strip()
     if len(transcript_text) < 200:
         return []
-    try:
-        raw = llm.generate_completion(EXTRACTION_SYSTEM, transcript_text[-12000:])
-    except Exception:
-        return []
+    # NB: a failing LLM call propagates on purpose. The Stop-hook worker relies
+    # on this to tell "extraction failed" (retry, keep watermark) apart from
+    # "extraction succeeded with nothing to store" (advance watermark). Swallowing
+    # it here silently advanced the watermark over un-extracted turns -> data loss.
+    raw = llm.generate_completion(EXTRACTION_SYSTEM, transcript_text[-12000:])
     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
     try:
         candidates = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        # Stronger models (e.g. opus) often wrap the JSON in prose ("I'll extract
+        # ... ```json [...] ```"). Fall back to the outermost [...] / {...} block
+        # so chattier output still parses instead of silently yielding nothing.
+        match = re.search(r"\[.*\]|\{.*\}", raw, re.DOTALL)
+        if not match:
+            return []
+        try:
+            candidates = json.loads(match.group(0))
+        except (json.JSONDecodeError, TypeError):
+            return []
     stored = []
     for item in candidates[:10] if isinstance(candidates, list) else []:
         if not isinstance(item, dict) or not item.get("fact"):

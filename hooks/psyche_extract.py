@@ -1,9 +1,10 @@
 """PreCompact/SessionEnd hook: extract durable atomic facts from the transcript.
 
 Write-only — injects nothing. Uses Psyche's chat model when configured; when
-CHAT_MODEL=none, falls back to headless `claude -p --model haiku` (requires a
-one-time `claude /login`). No-ops silently when neither is available. The
-near-duplicate guard makes PreCompact + SessionEnd double-firing safe.
+CHAT_MODEL=none, falls back to headless `claude -p` on the user's subscription
+(model set by PSYCHE_EXTRACT_MODEL, default `opus` for higher-quality facts;
+requires a one-time `claude /login`). No-ops silently when neither is available.
+The near-duplicate guard makes PreCompact + SessionEnd double-firing safe.
 """
 import json
 import os
@@ -13,17 +14,20 @@ import sys
 import _hook_common as hc
 
 MAX_TRANSCRIPT_CHARS = 12000
+# Higher-quality extraction by default; override with PSYCHE_EXTRACT_MODEL=haiku
+# for a cheaper/faster pass. opus produces noticeably cleaner atomic facts.
+EXTRACT_MODEL = os.environ.get("PSYCHE_EXTRACT_MODEL", "opus")
 
 
 class _ClaudeCLIChat:
     """LLM shim: embeddings delegate to Psyche's local model; completions go
     through the claude CLI in headless mode on the user's subscription."""
-    chat_model = "claude-haiku-cli"
 
     def __init__(self, base_llm, cli_path):
         self._base = base_llm
         self._cli = cli_path
         self.provider = base_llm.provider
+        self.chat_model = f"claude-{EXTRACT_MODEL}-cli"
 
     def get_embedding(self, text):
         return self._base.get_embedding(text)
@@ -31,9 +35,9 @@ class _ClaudeCLIChat:
     def generate_completion(self, system_instruction, prompt):
         env = dict(os.environ, PSYCHE_MEM_HOOK="1")
         result = subprocess.run(
-            [self._cli, "-p", "--model", "haiku", "--max-turns", "1"],
+            [self._cli, "-p", "--model", EXTRACT_MODEL, "--max-turns", "1"],
             input=f"{system_instruction}\n\n---\nTRANSCRIPT:\n{prompt}",
-            capture_output=True, text=True, timeout=100, env=env, cwd="/tmp",
+            capture_output=True, text=True, timeout=180, env=env, cwd="/tmp",
         )
         out = (result.stdout or "").strip()
         if result.returncode != 0 or not out or "login" in out.lower()[:60]:
@@ -102,7 +106,9 @@ def extract_facts(payload, *, source="extract"):
     Shared by the PreCompact/SessionEnd flush (this module's main()) and the
     Stop-hook incremental worker (psyche_stop.py). The near-duplicate guard in
     memzero.extract_and_store makes overlapping extraction windows safe.
-    Returns the list of stored facts (empty on no-op/failure)."""
+    Returns the list of stored facts ([] when there was nothing to extract).
+    Raises if the underlying LLM call fails — callers that advance a watermark
+    must treat that as 'retry later', not 'done'."""
     session_id = payload.get("session_id", "")
     path = payload.get("transcript_path", "")
     if not path or not os.path.exists(path):
