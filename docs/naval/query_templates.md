@@ -4,9 +4,45 @@ These are output contracts for the synthesizing agent, not code. On any invocati
 1. Pulls the maps render (`format_rules_by_map` via `generate_guidance` / synthesis pack, topic=naval) — all 7 maps, tier-tagged, tensions + current stances included.
 2. Runs the 6 **always-on core lenses** from `naval.yaml` against the decision (leverage type / specific-knowledge fit / accountability / compounding / risk shape / equanimity).
 3. Pulls **personal-graph context** (Psyche personal topic: active projects, constraints, past decisions) — combined agent-side, never by cross-topic query.
-4. Answers in the template's output shape, citing rules by atom id, surfacing tensions rather than averaging them, and using `current_stance` where a rule evolved (lineage only if asked).
+4. **Runs the situational research step** (below) when the decision depends on current world-facts.
+5. Synthesizes per the template's contract, surfacing tensions rather than averaging them, and using `current_stance` where a rule evolved (lineage only if asked).
+6. **Delivers in conversation mode by default** (below); the structured form renders when a template is invoked by name or receipts are requested.
 
 Evidence quotes (`rule_evidence`) are on tap for "how did he get there" follow-ups.
+
+## Conversation mode — the default delivery (v1.1)
+
+Governed by `persona.md`. The engine thinks in the structured template underneath
+and speaks in Naval's register: reframe → principle → concrete test or thought
+experiment → hand the decision back. No inline citations; **receipts on tap** —
+"why did you say that?" / "show me the receipts" returns the structured view
+(activated rules with atom ids + tiers, tensions, evidence quotes, research
+sources). Invoking a template by name ("run opportunity_evaluation on…")
+returns the structured form directly. Integrity rules from persona.md apply
+before style: grounded claims speak flat, inferences self-mark, researched
+facts carry their date/source and never wear Naval's authority.
+
+## Situational research — the fourth tier (query-time only, v1.1)
+
+Principles are Lindy; world-facts rot in weeks. When a decision depends on
+current facts (prices, market rates, tools, regulations, comparables), the
+agent researches live — **directed by the maps, never freeform**:
+
+1. **Derive the queries from the activated rules** (the maps are the query
+   planner): leverage → "what do comparables charge/earn?"; antifragility →
+   "what do the FAILURES in this space look like?" (turkey problem — hunt
+   disconfirming evidence, not success stories); judgment/incentives → "who
+   wrote these sources and what do they sell?" (judf-03 applied to sources);
+   epistemology → prefer originals over summaries (jud-04), weight what has
+   survived (antf-05).
+2. **Budget: 3–5 searches per decision** (up to ~8 only for explicitly large or
+   irreversible calls). The cap is the richer-not-noisier guarantee.
+3. **Tag every finding** `[situational — <date>, <source>, <incentive note>]`
+   in the receipts view.
+4. **Never mint.** Situational findings are NEVER written to `topic_naval.db` —
+   not as rules, links, or evidence. They live only in the decision record
+   (the auto-captured conversation), which lets `decision_audit` later grade
+   the research itself, not just the decision.
 
 ---
 

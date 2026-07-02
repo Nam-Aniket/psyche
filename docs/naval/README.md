@@ -33,6 +33,15 @@ current stances → the host agent synthesizes per the six
 Naval-topic sessions are auto-captured into `memory_recall`
 (`hooks/psyche_stop.py`, config key `auto_capture_topics`, default `["naval"]`).
 
+**v1.1 — conversation mode + situational research.** The default delivery is
+now conversational in Naval's register, governed by [persona.md](persona.md)
+(voice moves distilled verbatim from the corpus; hard integrity rules:
+channeling not impersonation, inferences self-mark, receipts on tap). When a
+decision depends on current world-facts, the agent runs a **situational
+research step** — 3–5 live searches derived from the activated maps, findings
+date/source/incentive-tagged, never minted into the DB (query_templates.md §
+Situational research). Validated live in [v1.1-validation.md](v1.1-validation.md).
+
 ## Documents
 
 - [plan.md](plan.md) — the original 10-task implementation plan (all complete)
