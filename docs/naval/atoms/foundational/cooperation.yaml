@@ -1,0 +1,50 @@
+# Map: Accountability & Cooperation — FOUNDATIONAL pass (Task 5)
+# The iterated-game math (Axelrod, src 6) and evolutionary grounding (Dawkins
+# src 5, Ridley src 4) beneath Naval's long-term-games principles.
+map: cooperation
+source_tier: foundational
+atoms:
+  - id: coopf-01
+    statement: "Tit-for-tat wins iterated games by being nice, provocable, forgiving, and clear — never defect first, answer defection once, then return to cooperation."
+    decision_rule: "Default to cooperating first. If the other side defects, respond once — visibly — then forgive when they return to cooperation. Keep my rules legible enough that others can predict them."
+    source: "The Evolution of Cooperation — Robert Axelrod"
+    source_date: "1984-01-01"
+    principle_type: axiom
+    supports: coop-01
+    evidence: "TIT FOR TAT's robust success is due to being nice, provocable, forgiving, and clear. Its niceness means it is never the first to defect. (src 6 #255)"
+
+  - id: coopf-02
+    statement: "Cooperation is stable only when the shadow of the future is large — durable, frequent interactions make defection irrational."
+    decision_rule: "To get cooperation, enlarge the shadow of the future: make the relationship durable and interactions frequent. If the future doesn't matter to the other side, expect defection and structure accordingly."
+    source: "The Evolution of Cooperation — Robert Axelrod"
+    source_date: "1984-01-01"
+    principle_type: axiom
+    supports: coop-01
+    evidence: "Enlarge the shadow of the future — mutual cooperation can be stable if the future is sufficiently important relative to the present. (src 6 #189)"
+
+  - id: coopf-03
+    statement: "Niceness without provocability gets invaded — unanswered exploitation teaches the exploiter to continue."
+    decision_rule: "Am I letting a defection pass to keep the peace? Unpunished defection invites more → respond once, clearly and proportionately, then re-offer cooperation."
+    source: "The Evolution of Cooperation — Robert Axelrod"
+    source_date: "1984-01-01"
+    principle_type: derived
+    supports: coop-06
+    evidence: "For a nice strategy to be stable in the collective sense, it must be provocable … being provocable is actually required for a nice rule like TIT FOR TAT to resist invasion. (src 6 #112, #178)"
+
+  - id: coopf-04
+    statement: "Reciprocal altruism runs on recognition and memory — in communities where behavior is remembered, cheats get detected and excluded."
+    decision_rule: "Is this a repeat-player community with memory and reputation? If yes, cooperation compounds and cheating is fatal; if anonymous and one-shot, guard against cheats and don't over-extend trust."
+    source: "The Selfish Gene — Richard Dawkins; The Origins of Virtue — Matt Ridley"
+    source_date: "1976-01-01"
+    principle_type: derived
+    supports: coop-06
+    evidence: "Reciprocal altruism, the principle of 'You scratch my back, I'll scratch yours.' (src 5 #396) A bat that cheats is therefore soon detected. Reciprocity rules the roost. (src 4 #106)"
+
+  - id: coopf-05
+    statement: "The division of labour is the engine of cooperative gains — self-sufficiency is much overrated."
+    decision_rule: "Am I trying to do everything myself? Specialize where I have the edge and trade for the rest — insisting on self-sufficiency forfeits the gains from exchange."
+    source: "The Origins of Virtue — Matt Ridley"
+    source_date: "1996-01-01"
+    principle_type: derived
+    supports: lev-06
+    evidence: "Chapter Two: The Division of Labour — in which self-sufficiency proves to be much overrated. (src 4 #61)"

@@ -1,0 +1,101 @@
+# Task 6 — Tier-2 evidence: Modern Wisdom #922 (44 Harsh Truths About Human Nature)
+# THE EVOLUTION ANCHOR episode. source_date at YEAR precision (2025; month not
+# confirmed from transcript).
+# PRECISION NOTE: the statement Naval disavows verbatim in chunk 0 is the
+# "happiness is being satisfied with what you have / success comes from
+# dissatisfaction" aphorism (read back to him by the host) — NOT literally
+# "happiness is a skill." The evolution claim below is grounded in the full
+# pattern: he downgrades his happiness aphorisms wholesale ("notes to myself,
+# highly contextual"), calls happiness "one of those overloaded words," and
+# re-centers on "being okay with where you are." Chunk 30 shows the choice
+# element SURVIVES — so the evolution is a downgrade-and-reframe, not a reversal.
+source: "Modern Wisdom #922 — 44 Harsh Truths About Human Nature"
+source_id: 269
+source_date: "2025"
+source_tier: evidence
+items:
+  - id: mw922-01
+    rule: equ-03
+    stance: strains
+    chunk: 0
+    quote: "Oof. I'm not sure that statement is true anymore. I made that statement a long time ago, and a lot of these things are just notes to myself and they're highly contextual. They come in the moment, they leave in the moment. Happiness is a very complicated topic."
+    note: "Said of 'happiness is being satisfied with what you have; success comes from dissatisfaction.' The wholesale downgrade — his crisp happiness aphorisms are contextual notes-to-self, not universal claims. Primary quote behind the evolution link."
+
+  - id: mw922-02
+    rule: equ-03
+    stance: refines
+    chunk: 62
+    quote: "It's just one of those overloaded words that means different things to different people, so I'm not even sure we're communicating the same language. But what is happiness? I think it's just basically being okay with where you are. Not wanting ... Not wanting things to be different than the way they are."
+    note: "Asked 'is happiness still more about peace than joy' — he rejects the word itself, then gives the 2025 operative definition: being okay with where you are / not wanting things different (second fragment continues across a section heading in the transcript)."
+
+  - id: mw922-03
+    rule: equ-03
+    stance: refines
+    chunk: 30
+    quote: "I think a lot of happiness is just a choice in the sense that you make. First you just identify yourself as 'actually I'm going to be a person that's going to be happy.'"
+    note: "The choice element of equ-03 SURVIVES in 2025 — evidence the evolution is a reframe around 'happiness,' not a reversal of the skill/choice claim."
+
+  - id: mw922-04
+    rule: equ-01
+    stance: refines
+    chunk: 6
+    quote: "This loop that we run through of desire, dopamine, fulfillment, unfulfillment — you have to enjoy the journey. The journey is all there is. Ninety-nine percent of your time is spent on the journey."
+    note: "Supplements choose-desires-carefully: for the desires you do keep, the journey must itself be enjoyable — pursuit can't be pure deferred payoff."
+
+  - id: mw922-05
+    rule: equ-06
+    stance: refines
+    chunk: 2
+    quote: "It depends on the person, but I think you have to try that path."
+    note: "Naval's answer after the host reads his own insight back to him ('it's far easier to achieve our material desires than it is to renounce them'). Pragmatic sequencing on absence-of-desire: achievement-then-seeing-through beats premature renunciation for most people. The framing sentence is the HOST quoting Naval, so it is not quoted as Naval's live words."
+
+  - id: mw922-06
+    rule: equ-08
+    stance: confirms
+    chunk: 49
+    quote: "Another one of my little quips was, you know, a rational person can sort of find peace by cultivating indifference to things that are out of their control, and I'm as guilty as anybody of doomsurfing on X or social media"
+    note: "Reaffirms the control test — with rare self-report that he fails it too (calibration: the rule is aspirational even for its author). Note he ALSO calls this one of his 'little quips' — same aphorism-downgrade pattern as mw922-01."
+
+  - id: mw922-07
+    rule: coop-01
+    stance: refines
+    chunk: 21
+    quote: "The only way you can play a win-win game is if you have long term iterated moves, but that's not actually the most common game played in society."
+    note: "Sharpens long-term games: iteration is the PRECONDITION for win-win, and the societal default is not this game — so selecting the game is the move."
+
+  - id: mw922-08
+    rule: coop-06
+    stance: refines
+    chunk: 19
+    quote: "To some extent self-esteem is a reputation you have with yourself. You're watching yourself at all times, you know what you're doing and you have your own moral code."
+    note: "Extends reputation-compounding inward: self-esteem as internal reputation — same asset, internal ledger."
+
+  - id: mw922-09
+    rule: lev-05
+    stance: confirms
+    chunk: 15
+    quote: "There's never been an easier time to create wealth, because there's so much leverage out there, there's so much opportunity. You still have to go find it, it's not easy."
+    note: "Permissionless-leverage claim holding at full strength in 2025."
+
+  - id: mw922-10
+    rule: epi-02
+    stance: refines
+    chunk: 103
+    quote: "Wisdom is the set of things that cannot be transmitted. If they could be transmitted, you know, we'd read the same five philosophy books, it would all be done, we'd all be wise. You have to learn it for yourself, it has to be rediscovered for yourself in your own context."
+    note: "Wisdom must be re-derived, not received — the re-derivation rule extended from knowledge to wisdom."
+
+  - id: mw922-11
+    rule: epi-02
+    stance: confirms
+    chunk: 127
+    quote: "You can get it from first principles, and every piece of what you know is like a Lego block that just fits in and forms a steel frame — it's solid, it's locked in there."
+    note: "The steel-frame image for first-principles understanding vs memorized conclusions."
+
+evolutions:
+  - id: mw922-evo-01
+    from: equ-03
+    to: equ-09
+    as_of: "2025"
+    why: "MW #922: Naval downgrades his crisp happiness aphorisms wholesale — 'I'm not sure that statement is true anymore... a lot of these things are just notes to myself and they're highly contextual' — and rejects 'happiness' as 'one of those overloaded words.' His operative frame is now 'being okay with where you are, not wanting things to be different' — the peace/equanimity formulation of equ-09 (itself on record since 2016, tfs136-01). The choice element survives (mw922-03); what evolved is the claim's status: universal aphorism → contextual note, with peace as the load-bearing concept."
+    quote: "I'm not sure that statement is true anymore. I made that statement a long time ago, and a lot of these things are just notes to myself and they're highly contextual."
+    current_stance: "2025 (MW #922): the 'happiness is a skill/choice' aphorism is downgraded to a contextual note-to-self, and Naval avoids the overloaded word 'happiness' altogether. Operative frame: being okay with where you are — peace/equanimity (see equ-09). The choice element survives as practice ('identify yourself as a person that's going to be happy'), not as a universal claim."

@@ -1,0 +1,79 @@
+# Map: Judgment / Clear Thinking — FOUNDATIONAL pass (Task 5)
+# The Munger lattice + Feynman epistemic honesty that ground Naval's judgment
+# principles. Each atom is verbatim-grounded in the ingested corpus (source ids
+# 280 Poor Charlie's Almanack, 274/278 Feynman) and `supports`-linked to the
+# canonical Naval atom it deepens.
+map: judgment
+source_tier: foundational
+atoms:
+  - id: judf-01
+    statement: "Invert, always invert — work out what guarantees failure or misery, and avoid that first, before optimizing for success."
+    decision_rule: "State the failure condition explicitly: what would make this decision a disaster? Eliminate those paths first; only then optimize among what remains."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: axiom
+    supports: jud-01
+    evidence: "Think forwards and backwards — Invert, always invert. (Jacobi's directive, Munger's signature method; src 280 #130)"
+
+  - id: judf-02
+    statement: "Facts are unusable unless they hang on a latticework of mental models drawn from multiple disciplines."
+    decision_rule: "Before deciding, run the problem through models from at least two or three different disciplines. Using only one lens → man-with-a-hammer syndrome → borrow another model first."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: axiom
+    supports: jud-04
+    evidence: "If the facts don't hang together on a latticework of theory, you don't have them in a usable form. You've got to have models in your head. (src 280 #244)"
+
+  - id: judf-03
+    statement: "Never think about something else when you should be thinking about the power of incentives — even the smart chronically underestimate it."
+    decision_rule: "Whose incentives shape this situation, advice, or behavior? Trace who gets paid for what before trusting any recommendation or predicting anyone's conduct."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: axiom
+    supports: jud-01
+    evidence: "Never, ever, think about something else when you should be thinking about the power of incentives … I've always underestimated that power. (src 280 #770-771)"
+
+  - id: judf-04
+    statement: "Operate inside your circle of competence — true mastery means you can answer the next hard question; outside it, you're gambling."
+    decision_rule: "Can I legitimately answer the next hard question about this domain? No → I'm outside my circle → don't bet big; either learn it properly or pass."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: derived
+    supports: lev-06
+    evidence: "If you cannot respond legitimately to the next question, you lack true mastery and are likely outside your Circle of Competence. (src 280 #115)"
+
+  - id: judf-05
+    statement: "Great opportunities are rare — wait for the fat pitch, then swing hard; activity for its own sake is a tax."
+    decision_rule: "Is this a fat pitch (slow, straight, in my sweet spot) or merely an acceptable one? Acceptable → pass and keep waiting; fat → concentrate with real size."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: derived
+    serves: focus_arbitration
+    evidence: "Once in a while, you will find a 'fat pitch' that is slow, straight, and right in the middle of your sweet spot. Then you swing hard. (src 280 #107); 'sit on your ass investing' (src 280 #104)"
+
+  - id: judf-06
+    statement: "Outsized outcomes are lollapaloozas — several independent forces compounding in the same direction, for good or ill."
+    decision_rule: "How many independent forces favor this? One → weak bet; several reinforcing each other in the same direction → expect a lollapalooza (and check the same for risks against me)."
+    source: "Poor Charlie's Almanack — Charlie Munger"
+    source_date: "2005-01-01"
+    principle_type: derived
+    supports: lev-13
+    evidence: "The factors employed combine to create enormous 'Lollapalooza-level results,' good or bad. (src 280 #99)"
+
+  - id: judf-07
+    statement: "The first principle is that you must not fool yourself — and you are the easiest person to fool."
+    decision_rule: "What would I expect to see if I'm wrong, and have I actually looked for it? If I've only gathered confirming evidence → I'm fooling myself → run the disconfirming test before proceeding."
+    source: "Cargo Cult Science (1974 Caltech address) — Richard Feynman"
+    source_date: "1974-06-14"
+    principle_type: axiom
+    supports: jud-01
+    evidence: "It's this type of integrity, this kind of care not to fool yourself, that is missing to a large extent in much of the research in cargo cult science. (src 278 #575)"
+
+  - id: judf-08
+    statement: "Knowing the name of something is not knowing it — labels are not understanding."
+    decision_rule: "Can I explain the mechanism without using the jargon? If I only know the label → I don't know the thing → go re-derive it before relying on it."
+    source: "Feynman Lectures on Computation (foreword recollection) — Richard Feynman"
+    source_date: "1996-01-01"
+    principle_type: axiom
+    supports: epi-02
+    evidence: "Knowing very early on the difference between knowing the name of something and knowing something. (src 274 #569)"

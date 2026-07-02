@@ -21,6 +21,7 @@ from db import (
     add_metric_log, get_metric_logs,
     add_review, get_reviews,
     add_rule, get_rules, update_rule,
+    get_rules_by_map,
 )
 from llm_client import LLMClient
 from rich.console import Console
@@ -181,6 +182,49 @@ SCHEMA:
 """
 
 
+def format_rules_by_map(conn, domain):
+    """Naval-engine rendering: rules grouped by mental map, tensions surfaced.
+
+    Returns '' when the domain pack declares no maps, so non-map domains keep
+    the flat PERSONAL RULES rendering. Each map renders as '**<name> says:**'
+    with its rules tier-tagged (canonical = Naval's words, foundational = the
+    source thinkers). A rule that evolved shows its current_stance — that is
+    the default answer; full lineage stays in rule_links, on tap. Cross-map
+    tension links render at the bottom so conflicts surface instead of being
+    averaged away."""
+    pack = load_domain_pack(domain)
+    maps_meta = pack.get("maps") or {}
+    if not maps_meta:
+        return ""
+    grouped = get_rules_by_map(conn, domain)
+    lines = []
+    for key, meta in maps_meta.items():
+        rules = grouped.get(key) or []
+        if not rules:
+            continue
+        lines.append(f"**{(meta or {}).get('name', key)} says:**")
+        for r in rules:
+            lines.append(f"- [{r.get('source_tier') or 'rule'}] {r['rule_text']}")
+            if r.get("current_stance"):
+                lines.append(f"  - Current stance: {r['current_stance']}")
+        lines.append("")
+    id_to_text = {r["id"]: r["rule_text"] for rs in grouped.values() for r in rs}
+    tension_lines = []
+    for rule_a, rule_b, why in conn.execute(
+            "SELECT rule_a, rule_b, why FROM rule_links WHERE link_type = 'tension'"):
+        text_a, text_b = id_to_text.get(rule_a), id_to_text.get(rule_b)
+        if not text_a or not text_b:
+            continue
+        line = f'- Tension: "{text_a[:90]}" vs "{text_b[:90]}"'
+        if why:
+            line += f" — {why}"
+        tension_lines.append(line)
+    if tension_lines:
+        lines.append("**Tensions between maps:**")
+        lines.extend(tension_lines)
+    return "\n".join(lines).strip()
+
+
 def _gather_guidance_context(goal_text, domain, db_path, llm) -> dict:
     """Gathers all retrieval/context needed for guidance generation.
 
@@ -199,6 +243,7 @@ def _gather_guidance_context(goal_text, domain, db_path, llm) -> dict:
         existing_rules = get_rules(conn, domain=domain)
         active_goals = get_goals(conn, domain=domain, status='active')
         active_experiments = get_experiments(conn, status='active')
+        rules_by_map = format_rules_by_map(conn, domain)
     finally:
         conn.close()
 
@@ -274,6 +319,7 @@ def _gather_guidance_context(goal_text, domain, db_path, llm) -> dict:
             {"confidence": r["confidence"], "rule_text": r["rule_text"], "source": r["source"] or "manual"}
             for r in existing_rules
         ],
+        "rules_by_map": rules_by_map,
         "diagnostic_questions": pack.get("diagnostic_questions", []),
         "available_metrics": pack.get("metrics", []),
     }
@@ -291,7 +337,11 @@ def generate_guidance_brief(goal_text, domain, db_path, llm):
 
     # Build the prompt using gathered context
     rules_text = ""
-    if ctx["personal_rules"]:
+    if ctx.get("rules_by_map"):
+        rules_text = ("\n### PERSONAL RULES — BY MENTAL MAP (tensions surfaced; "
+                      "where a rule shows a Current stance, that supersedes its original phrasing):\n"
+                      + ctx["rules_by_map"] + "\n")
+    elif ctx["personal_rules"]:
         rules_text = "\n### PERSONAL RULES (learned from past experience):\n"
         for r in ctx["personal_rules"]:
             rules_text += f"- [{r['confidence']}] {r['rule_text']} (source: {r['source']})\n"

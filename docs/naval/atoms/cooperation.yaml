@@ -1,0 +1,62 @@
+# Map: Accountability & Cooperation — CANONICAL pass (Naval's own words)
+# NOTE: Axelrod's iterated-game math is FOUNDATIONAL (Task 5); Taleb's skin-in-
+# the-game deepens coop-05/06. These are Naval's own canonical principles.
+map: cooperation
+source_tier: canonical
+atoms:
+  - id: coop-01
+    statement: "All outsized returns — wealth, relationships, knowledge — come from compounding, which only happens in long-term games with long-term people."
+    decision_rule: "Iterated game with people I'll deal with for decades, or a one-shot? One-shot / churn-and-burn → no compounding → flag. Switching games resets compounding to zero."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Play long-term games with long-term people … Returns come from compound interest in iterated games … When you switch industries you're starting over from scratch."
+
+  - id: coop-02
+    statement: "Choose collaborators for intelligence, energy, and integrity — and if integrity is missing, the other two will be used against you."
+    decision_rule: "Does this person have all three? Integrity absent → walk away regardless of how smart or energetic they are → hard no."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Pick business partners with high intelligence, energy, and integrity … Integrity is what someone does despite what they say they do."
+
+  - id: coop-03
+    statement: "Partner with rational optimists, not pessimists — only people who believe problems are solvable will build."
+    decision_rule: "Is this person a rational optimist or a pessimist? Pessimist → won't build, will talk you out of asymmetric bets → avoid as a partner."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Partner with rational optimists … Don't partner with pessimists."
+
+  - id: coop-04
+    statement: "Take business risk publicly under your own name — accountability is what earns leverage, credibility, and equity."
+    decision_rule: "Is my name and real downside on the line? If I'm anonymous or shielded from failure → I won't capture the upside → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "You need accountability to get leverage … Take business risks under your own name … People who can fail in public have a lot of power."
+
+  - id: coop-05
+    statement: "Accountability is reputational skin in the game — it is what makes your promises credible."
+    decision_rule: "Do I have skin in the game here, or am I advising / promising with no downside? No skin → discount my own confidence and others'."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Accountability is reputational skin in the game."
+
+  - id: coop-06
+    statement: "Reputation is a compounding asset — build character so opportunity finds you."
+    decision_rule: "Does this action build or spend reputation? Bias toward actions that compound trust over decades, even at a short-term cost."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Build your character so opportunity finds you … long-term players make each other rich."
+
+  - id: coop-07
+    statement: "Motivation must come intrinsically — extrinsic push doesn't sustain people or partnerships."
+    decision_rule: "Is the drive here intrinsic (genuine pull) or externally imposed? Extrinsic-only → won't sustain through hardship → reconsider the commitment."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Motivation has to come intrinsically."
+    tension_with: equ-03

@@ -1,0 +1,26 @@
+# Task 6 — Tier-2 evidence: The Tim Ferriss Show #136 (Happiness Hacks, 5 Chimps)
+source: "The Tim Ferriss Show #136 — Happiness Hacks and the 5 Chimps Theory"
+source_id: 271
+source_date: "2016-02"
+source_tier: evidence
+items:
+  - id: tfs136-01
+    rule: equ-09
+    stance: origin
+    chunk: 11
+    quote: "I actually don't think happiness is its own thing. I think a lot of what we think of as happiness is actually just pleasure... But I think true happiness comes out of peace. And peace comes out of many things, but it comes out of fundamentally understanding yourself."
+    note: "Peace-primacy stated in 2016 — four years before the 'Peace Is Happiness in Motion' essay. The 2025 MW-922 stance is a return to this, not a brand-new position."
+
+  - id: tfs136-02
+    rule: equ-02
+    stance: confirms
+    chunk: 7
+    quote: "In my case, there was definitely hedonic adaptation. I'd very quickly get used to anything. So led me to the conclusion, which seems trite, that happiness is internal."
+    note: "Internal-locus framing reached via first-person hedonic-adaptation experience (also evidences equ-04's baseline-reset claim); continues into chunk 8 with 'all real success is internal.'"
+
+  - id: tfs136-03
+    rule: jud-04
+    stance: refines
+    chunk: 9
+    quote: "What kinds of books should you read, preferably older ones, not newer ones that have withstood the test of time?"
+    note: "Adds the age filter to read-the-originals — a Lindy criterion for book selection (cf. foundational antf-05), stated by Naval himself in 2016."

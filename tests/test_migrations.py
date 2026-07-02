@@ -38,7 +38,7 @@ class TestMigrations(unittest.TestCase):
             self.assertIn("last_retrieved_at", cols("atomic_memories"))
             self.assertIn("plan_id", cols("goals"))
             self.assertIn("plan_id", cols("experiments"))
-            self.assertEqual(db.get_metadata(conn, "schema_version"), "3")
+            self.assertEqual(db.get_metadata(conn, "schema_version"), str(db.SCHEMA_VERSION))
         finally:
             conn.close()
 

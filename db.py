@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 # Current schema version. Bump this whenever the schema changes and append a
 # matching (version, callable) pair to MIGRATIONS below.
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 5
 
 
 def _create_atomic_memory_tables(conn: sqlite3.Connection):
@@ -62,12 +62,67 @@ def _migrate_v3_actionable_and_project(conn: sqlite3.Connection):
             pass
 
 
+def _migrate_v4_naval_rules(conn: sqlite3.Connection):
+    """v4: maps layer + temporal model for the naval decision engine.
+
+    Additive columns tag each rule-atom with its mental map, the source's date
+    and tier (canonical/foundational/evidence), axiom-vs-derived type, and —
+    when the principle evolved — Naval's current stance. The rule_links table
+    records typed relationships between rules (tension/evolution/supports)."""
+    cur = conn.cursor()
+    for ddl in (
+        "ALTER TABLE rules ADD COLUMN map TEXT",
+        "ALTER TABLE rules ADD COLUMN source_date TEXT",
+        "ALTER TABLE rules ADD COLUMN source_tier TEXT",
+        "ALTER TABLE rules ADD COLUMN principle_type TEXT",
+        "ALTER TABLE rules ADD COLUMN current_stance TEXT",
+    ):
+        try:
+            cur.execute(ddl)
+        except sqlite3.OperationalError:
+            pass
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS rule_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_a INTEGER NOT NULL,
+            rule_b INTEGER NOT NULL,
+            link_type TEXT NOT NULL,
+            as_of TEXT,
+            why TEXT,
+            source TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+
+def _migrate_v5_rule_evidence(conn: sqlite3.Connection):
+    """v5: dated Tier-2 evidence quotes attached to rules.
+
+    Podcasts and interviews never mint rules — they cite them. Each row is a
+    verbatim quote attached to an existing rule with a stance
+    (origin/confirms/refines/strains) and the utterance date."""
+    conn.cursor().execute("""
+        CREATE TABLE IF NOT EXISTS rule_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_id INTEGER NOT NULL,
+            quote TEXT NOT NULL,
+            note TEXT,
+            stance TEXT,
+            source TEXT,
+            as_of TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+
 # Ordered list of (target_version, migration_callable) pairs. Each callable
 # receives an open sqlite3.Connection and upgrades the schema to target_version.
 # Version 1 is the baseline schema (created idempotently in init_db).
 MIGRATIONS = [
     (2, _migrate_v2_atomic_memories),
     (3, _migrate_v3_actionable_and_project),
+    (4, _migrate_v4_naval_rules),
+    (5, _migrate_v5_rule_evidence),
 ]
 
 def resolve_db_path(db_path: str = None) -> str:
@@ -296,6 +351,12 @@ def init_db(db_path: str):
     # Apply v3 additive columns so fresh DBs converge with migrated ones
     # (the ALTERs are idempotent via try/except inside).
     _migrate_v3_actionable_and_project(conn)
+
+    # Apply v4 naval-engine columns + rule_links (idempotent, same convergence).
+    _migrate_v4_naval_rules(conn)
+
+    # Apply v5 rule_evidence table (idempotent, same convergence).
+    _migrate_v5_rule_evidence(conn)
 
     # Apply schema versioning / migrations now that all tables exist.
     _run_migrations(conn)
@@ -1178,16 +1239,84 @@ def get_reviews(conn: sqlite3.Connection, goal_id: int = None, experiment_id: in
     rows = cursor.fetchall()
     return [{"id": r[0], "experiment_id": r[1], "goal_id": r[2], "what_happened": r[3], "what_worked": r[4], "what_didnt": r[5], "lesson": r[6], "next_action": r[7], "created_at": r[8]} for r in rows]
 
-def add_rule(conn: sqlite3.Connection, domain: str, rule_text: str, source: str = None, confidence: str = 'tentative') -> int:
-    """Creates a new personal rule. Returns the rule ID."""
+def add_rule(conn: sqlite3.Connection, domain: str, rule_text: str, source: str = None,
+             confidence: str = 'tentative', map: str = None, source_date: str = None,
+             source_tier: str = None, principle_type: str = None,
+             current_stance: str = None) -> int:
+    """Creates a new personal rule. Returns the rule ID.
+
+    The naval decision engine uses the extra fields: `map` (which mental map the
+    rule belongs to), `source_date`/`source_tier` (when/what authority it came
+    from), `principle_type` (axiom|derived), and `current_stance` (set when the
+    principle has evolved). All default to None so existing callers are unaffected."""
     cursor = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
     cursor.execute(
-        "INSERT INTO rules (domain, rule_text, source, confidence, active, created_at, updated_at) VALUES (?, ?, ?, ?, 1, ?, ?)",
-        (domain, rule_text, source, confidence, now, now)
+        "INSERT INTO rules (domain, rule_text, source, confidence, active, created_at, updated_at, "
+        "map, source_date, source_tier, principle_type, current_stance) "
+        "VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)",
+        (domain, rule_text, source, confidence, now, now,
+         map, source_date, source_tier, principle_type, current_stance)
     )
     conn.commit()
     return cursor.lastrowid
+
+
+def add_rule_link(conn: sqlite3.Connection, rule_a: int, rule_b: int, link_type: str,
+                  as_of: str = None, why: str = None, source: str = None) -> int:
+    """Records a typed link between two rules. link_type is one of
+    tension | evolution | supports | depends. For evolution links, rule_a is the
+    earlier principle and rule_b the later/current one. Returns the link ID."""
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        "INSERT INTO rule_links (rule_a, rule_b, link_type, as_of, why, source, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (rule_a, rule_b, link_type, as_of, why, source, now)
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def add_rule_evidence(conn: sqlite3.Connection, rule_id: int, quote: str, note: str = None,
+                      stance: str = None, source: str = None, as_of: str = None) -> int:
+    """Attaches a dated Tier-2 evidence quote to an existing rule. Evidence
+    never mints rules — it cites them. stance is one of
+    origin | confirms | refines | strains. Returns the evidence row ID."""
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        "INSERT INTO rule_evidence (rule_id, quote, note, stance, source, as_of, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (rule_id, quote, note, stance, source, as_of, now)
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def get_rules_by_map(conn: sqlite3.Connection, domain: str, active: bool = True) -> dict:
+    """Returns active rules for a domain grouped by their `map` tag:
+    {map_name: [rule_dict, ...]}. Rules with no map fall under '_unmapped'."""
+    cursor = conn.cursor()
+    query = (
+        "SELECT id, domain, rule_text, source, confidence, active, created_at, updated_at, "
+        "map, source_date, source_tier, principle_type, current_stance "
+        "FROM rules WHERE domain = ?"
+    )
+    params = [domain]
+    if active:
+        query += " AND active = 1"
+    query += " ORDER BY map, updated_at DESC"
+    grouped = {}
+    for r in cursor.execute(query, params).fetchall():
+        rule = {
+            "id": r[0], "domain": r[1], "rule_text": r[2], "source": r[3],
+            "confidence": r[4], "active": bool(r[5]), "created_at": r[6],
+            "updated_at": r[7], "map": r[8], "source_date": r[9],
+            "source_tier": r[10], "principle_type": r[11], "current_stance": r[12],
+        }
+        grouped.setdefault(r[8] or "_unmapped", []).append(rule)
+    return grouped
 
 def get_rules(conn: sqlite3.Connection, domain: str = None, active: bool = True) -> list[dict]:
     """Retrieves personal rules, optionally filtered by domain."""

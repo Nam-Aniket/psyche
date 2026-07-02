@@ -1,0 +1,71 @@
+# Map: Judgment / Clear Thinking — CANONICAL pass (Naval's own words)
+# NOTE: the Munger lattice (inversion, second-order, circle of competence) and
+# Feynman first-principles are FOUNDATIONAL — they arrive in Task 5. These are
+# Naval's own canonical judgment/learning principles.
+map: judgment
+source_tier: canonical
+atoms:
+  - id: jud-01
+    statement: "A clear thinker — who sees reality without distortion — beats a merely 'smart' thinker."
+    decision_rule: "Am I reasoning from reality as it is, or from what I want, fear, or was told? Distorted inputs → wrong conclusion → strip the distortion before deciding."
+    source: "The Almanack of Naval Ravikant"
+    source_date: "2020-09-01"
+    principle_type: axiom
+    evidence: "Naval repeatedly elevates clear-seeing over raw intelligence; clear thinking is the same skill as freedom from one's own mind."
+
+  - id: jud-02
+    statement: "Doing beats watching — the number of doing-iterations drives the learning curve."
+    decision_rule: "Am I accumulating reps of actually doing, or watching/planning? Few reps → slow learning → ship something and iterate."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Doing is faster than watching … the number of 'doing' iterations drives the learning curve."
+
+  - id: jud-03
+    statement: "Learn to both build and sell; if you can do both you're unstoppable."
+    decision_rule: "Can I both build the thing and sell it? Missing one → dependent on someone else for half the value → close the gap."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Learn to sell, learn to build. If you can do both, you will be unstoppable."
+
+  - id: jud-04
+    statement: "Read the originals and the foundations (math and logic) — not secondhand summaries."
+    decision_rule: "Am I learning from primary source material and foundations, or from someone's summary? Secondhand → shallow, borrowed judgment → go to the source."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Read the original scientific books in a field … The ultimate foundations are math and logic."
+
+  - id: jud-05
+    statement: "Depth over breadth — better to read a great book slowly than fly through a hundred."
+    decision_rule: "Am I optimizing for books finished or for understanding that sticks? Optimize for understanding; abandon books that aren't worth deep reading."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "It's better to read a great book slowly than to fly through a hundred books quickly."
+
+  - id: jud-06
+    statement: "There is no real skill called 'business' — learn concrete disciplines instead."
+    decision_rule: "Am I learning a concrete, foundational skill (sales, building, persuasion, programming) or a vague meta-skill? Vague → substitute a real one."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "There's no actual skill called 'business' … Learn persuasion and programming."
+
+  - id: jud-07
+    statement: "The two highest-leverage skills to learn are persuasion and programming."
+    decision_rule: "When learning time is scarce, does this build persuasion or programming leverage? If not, weigh it against those two before committing."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Learn persuasion and programming."
+
+  - id: jud-08
+    statement: "The means of learning are abundant; the desire to learn is scarce — protect genuine desire."
+    decision_rule: "Is my desire to learn this genuine (it pulls me) or obligatory? Obligatory learning won't compound → drop it or find the angle that genuinely pulls."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "The means of learning are abundant; the desire to learn is scarce."
+    tension_with: lev-06  # ties to specific-knowledge: curiosity is the engine

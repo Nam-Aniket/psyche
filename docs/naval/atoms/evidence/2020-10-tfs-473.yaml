@@ -1,0 +1,54 @@
+# Task 6 — Tier-2 evidence: The Tim Ferriss Show #473 (Happiness, Reducing Anxiety, Crypto)
+source: "The Tim Ferriss Show #473 — Happiness, Reducing Anxiety, Crypto"
+source_id: 272
+source_date: "2020-10"
+source_tier: evidence
+items:
+  - id: tfs473-01
+    rule: lev-13
+    stance: refines
+    chunk: 20
+    quote: "In modern life, what happens is the person who is the best at doing something in the world will get to do it for the entire world through a combination of leverage and distribution, accountability, and specific knowledge."
+    note: "Winner-take-most consequence of the productize triad — the payoff structure behind productize-yourself."
+
+  - id: tfs473-02
+    rule: equ-05
+    stance: refines
+    chunk: 36
+    quote: "When I say meditation, I don't mean sitting there and watching your breath or chanting a mantra. I mean, self-examination and meditation is a great way to do that self-therapy. It's sitting there with your thoughts."
+    note: "Meditation arc step 3: explicitly redefined as self-examination/self-therapy — the understanding goal fully displaces the technique."
+
+  - id: tfs473-03
+    rule: coop-01
+    stance: confirms
+    chunk: 80
+    quote: "Long-term thinking gets you long-term results. I've said this a thousand different ways. In business, you want to play long-term games with long-term people."
+    note: "Canonical long-term-games phrasing reaffirmed verbatim in conversation."
+
+  - id: tfs473-04
+    rule: equ-07
+    stance: confirms
+    chunk: 30
+    quote: "Imagine how effective you would be if you weren't anxious all the time."
+    note: "The effectiveness cost of anxiety — the practical stake behind deciding what's important."
+
+  - id: tfs473-05
+    rule: equ-01
+    stance: refines
+    chunk: 91
+    quote: "I have to be careful about not unconsciously taking on new desires. If I'm taking on a new desire, I better go fulfill that. These are all just games that I'm playing."
+    note: "Adds the unconscious-acquisition failure mode: desires sneak in unchosen — auditing them is ongoing work, not a one-time choice."
+
+  - id: tfs473-06
+    rule: jud-01
+    stance: confirms
+    chunk: 98
+    quote: "This whole not fooling yourself, paying attention to yourself, not taking yourself too seriously, examining your own thoughts from first principles."
+    note: "Naval channeling the Feynman epistemic-honesty rule (cf. foundational judf-07) as his own practice."
+
+  - id: tfs473-07
+    rule: jud-08
+    stance: refines
+    chunk: 29
+    quote: "It's your judgment. And the judgment comes from clear thinking. The clear thinking comes from having time to reflect and to pursue your genuine intellectual curiosity."
+    note: "Chains curiosity → reflection time → clear thinking → judgment; genuine curiosity is upstream of judgment, not just of learning."

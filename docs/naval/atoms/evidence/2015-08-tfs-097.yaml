@@ -1,0 +1,49 @@
+# Task 6 — Tier-2 evidence: The Tim Ferriss Show #97 (The Evolutionary Angel)
+# Podcasts NEVER mint rules. Each item attaches a dated verbatim quote to an
+# existing rule (stance: origin|confirms|refines|strains). chunk = source chunk index.
+source: "The Tim Ferriss Show #97 — The Evolutionary Angel"
+source_id: 270
+source_date: "2015-08"
+source_tier: evidence
+items:
+  - id: tfs097-01
+    rule: equ-03
+    stance: origin
+    chunk: 7
+    quote: "I think a lot of us learn as we get older that happiness is internal. Happiness is a choice that you make and a skill that you develop."
+    note: "Earliest dated statement of the happiness-as-choice/skill principle — 6 years before the 2021 canonical essay form. Start of the arc that MW-922 (2025) later downgrades."
+
+  - id: tfs097-02
+    rule: equ-01
+    stance: origin
+    chunk: 108
+    quote: "I like to stay aware of that because then I can choose my desires very carefully. I try not to have more than one big desire in my life at any given time."
+    note: "The choose-desires-deliberately rule already operative in 2015, with the concrete 'one big desire at a time' cap."
+
+  - id: tfs097-03
+    rule: equ-10
+    stance: refines
+    chunk: 57
+    quote: "I think to have peace of mind, you have to have peace of body, first. So that taught me the power of habits."
+    note: "Adds the ordering: physical health is the prerequisite layer under mental peace — sharpens the health-before-happiness ranking."
+
+  - id: tfs097-04
+    rule: coop-06
+    stance: confirms
+    chunk: 48
+    quote: "It's not really about did you waste money because like I said, your reputation matters and if it works out, you're going to make more than enough."
+    note: "Reputation-as-compounding-asset framing in an investing context, 3 years before HTGR."
+
+  - id: tfs097-05
+    rule: lev-06
+    stance: origin
+    chunk: 19
+    quote: "Do they have insight, do they have specific knowledge? Have they thought about the problem deeply? It's not about the age... just how deep is their understanding."
+    note: "'Specific knowledge' already in use as a founder-evaluation criterion in 2015 — the concept predates the HTGR tweetstorm by ~3 years."
+
+  - id: tfs097-06
+    rule: equ-05
+    stance: confirms
+    chunk: 51
+    quote: "I think meditation is like a diet where everyone is supposed to be following a regimen; everyone says they do it but nobody actually does it."
+    note: "2015 baseline of the meditation arc: formal practice viewed skeptically even then; the self-understanding goal, not the ritual, is the point (see tkp018-02, ns2024-03 for the arc)."

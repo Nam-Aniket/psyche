@@ -1,0 +1,42 @@
+# Map: Happiness & Desire — FOUNDATIONAL pass (Task 5)
+# The pack registers Nisargadatta (src 16, I Am That) and Kapil Gupta (src 15,
+# Direct Truth) as this map's foundational thinkers. Kept tight — the canonical
+# layer (equ-01..11) is already the densest map.
+map: equanimity
+source_tier: foundational
+atoms:
+  - id: equf-01
+    statement: "All suffering is born of desire — freedom is not the absence of desires but the absence of the compulsion to satisfy them."
+    decision_rule: "Is a desire compelling me here? The problem isn't having the desire — it's the compulsion. Drop the compulsion first; then act (or not) freely."
+    source: "I Am That — Nisargadatta Maharaj"
+    source_date: "1973-01-01"
+    principle_type: axiom
+    supports: equ-01
+    evidence: "All Suffering is Born of Desire (ch. 28) … Freedom from desire means this: the compulsion to satisfy is absent. (src 16 #23, #142)"
+
+  - id: equf-02
+    statement: "The search for happiness is itself the misery — seeking creates the very lack it tries to fill."
+    decision_rule: "Am I making this choice as a search for happiness? The search itself manufactures the deficit → stop seeking the state and instead remove what disturbs it."
+    source: "I Am That — Nisargadatta Maharaj"
+    source_date: "1973-01-01"
+    principle_type: axiom
+    supports: equ-02
+    evidence: "All Search for Happiness is Misery (ch. 66) … Don't you see that it is your very search for happiness that makes you feel miserable? (src 16 #24, #459)"
+
+  - id: equf-03
+    statement: "You are not the person — you are the witness in which the person appears; identification with the reactor is the bondage."
+    decision_rule: "In strong emotion, step to the witness before acting: observe 'anger is arising' rather than 'I am angry.' Decide from the witness, not from the reaction."
+    source: "I Am That — Nisargadatta Maharaj"
+    source_date: "1973-01-01"
+    principle_type: axiom
+    supports: equ-11
+    evidence: "You can see the person, but you are not the person … when you realize that you are not the person, but the pure and calm witness, you are the being. (src 16 #135-136)"
+
+  - id: equf-04
+    statement: "Prescriptions imprison — truth is reached by burning sincerity of one's own inquiry, not by following borrowed recipes."
+    decision_rule: "Am I following a borrowed prescription (routine, guru, productivity hack) or investigating from my own sincerity? A prescription adopted without understanding imprisons → drop it or re-derive it myself."
+    source: "Direct Truth — Kapil Gupta"
+    source_date: "2018-01-01"
+    principle_type: axiom
+    supports: equ-05
+    evidence: "Any prescription that one pursues, he becomes imprisoned to. If you use it as a crutch or a prescription, it will take you nowhere. (src 15 #61, #10)"

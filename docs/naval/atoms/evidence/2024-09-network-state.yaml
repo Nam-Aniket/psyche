@@ -1,0 +1,28 @@
+# Task 6 — Tier-2 evidence: Network State Conference 2024 fireside (Naval + Balaji)
+# provenance: machine transcription — faithful but unverified.
+# source_date at month precision; conference late Sep/Oct 2024.
+source: "Network State Conference 2024 — Naval & Balaji fireside"
+source_id: 309
+source_date: "2024-09"
+source_tier: evidence
+items:
+  - id: ns2024-01
+    rule: lev-06
+    stance: refines
+    chunk: 5
+    quote: "The right kinds of knowledge, what I call a specific knowledge in my tweet story is very important. Knowledge on the edge of what humanity knows and wants."
+    note: "Sharpens specific knowledge: not just untrainable/play-like, but positioned at the frontier of what humanity knows AND wants. ('tweet story' = whisper mishearing of 'tweetstorm' — quoted as transcribed.)"
+
+  - id: ns2024-02
+    rule: lev-04
+    stance: confirms
+    chunk: 27
+    quote: "You have to have some physical leverage in the physical world. So that means, yeah, you have to create something that society wants."
+    note: "Give-society-what-it-wants restated as the grounding requirement for leverage."
+
+  - id: ns2024-03
+    rule: equ-05
+    stance: refines
+    chunk: 30
+    quote: "Meditation is overloaded. It means everything to every person. I think understanding is probably a better route."
+    note: "Meditation arc step 4 (2024): even the word is dropped — 'understanding' is named as the better route. Method fully subordinated to the self-understanding goal (equ-05's core)."

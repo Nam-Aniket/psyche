@@ -1,0 +1,23 @@
+# Map: Epistemology — CANONICAL pass (Naval's own words)
+# THIN by design: falsifiability, conjecture-and-refutation, good explanations,
+# error-correction are FOUNDATIONAL (Popper, Deutsch — Task 5). These are the two
+# epistemic principles Naval states plainly himself.
+map: epistemology
+source_tier: canonical
+atoms:
+  - id: epi-01
+    statement: "Judge claims by reason and evidence, not by who said them — believe things because they survive scrutiny, not because of authority."
+    decision_rule: "Am I believing this because it is well-argued and holds up, or because of who said it / how it feels? Authority- or feeling-based → re-examine before acting on it."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Naval's insistence on reasoning from reality and foundations (math and logic) rather than received authority."
+
+  - id: epi-02
+    statement: "Knowledge you cannot re-derive from foundations isn't truly yours — understand the why, not just the what."
+    decision_rule: "Can I re-derive this from first principles, or am I repeating a memorized conclusion? Memorized-only → fragile understanding → go deeper before I rely on it."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "The ultimate foundations are math and logic … read the originals; understand from the ground up."
+    tension_with: jud-04

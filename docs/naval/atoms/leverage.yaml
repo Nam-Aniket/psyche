@@ -1,0 +1,119 @@
+# Map: Wealth & Leverage — CANONICAL pass (Naval's own words)
+# File-level defaults injected into each atom at write time.
+map: leverage
+source_tier: canonical
+atoms:
+  - id: lev-01
+    statement: "Seek wealth — assets that earn while you sleep — not money (a wealth transfer) or status (a zero-sum rank)."
+    decision_rule: "Does this build an owned, income-producing asset, or just pay me for time or rank? Earns nothing while I sleep → income/status, not wealth → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Wealth is assets that earn while you sleep / Money is how we transfer wealth / Status is your rank in the social hierarchy."
+
+  - id: lev-02
+    statement: "Renting out your time is capped and replaceable; financial freedom requires owning equity."
+    decision_rule: "Am I paid for hours, or do I own a piece that keeps paying? No ownership stake → labor → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "You won't get rich renting out your time / You must own equity to gain your financial freedom."
+    tension_with: svc-income  # labor income now can be fine IF it funds equity-bearing bets
+
+  - id: lev-03
+    statement: "Seek work where your inputs don't match your outputs — leverage decouples reward from hours."
+    decision_rule: "Could this pay many multiples of the effort (leverage), or is reward roughly linear in hours? Linear → no leverage → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "You want a career where your inputs don't match your outputs."
+
+  - id: lev-04
+    statement: "Wealth is giving society what it wants but doesn't yet know how to get — at scale."
+    decision_rule: "Does this serve a real, unmet want AND scale beyond my personal delivery? Doesn't scale → income ceiling → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Give society what it wants, but doesn't know how to get—at scale."
+
+  - id: lev-05
+    statement: "Product and media (code and content) are the new permissionless leverage — they work while you sleep and need no one's permission."
+    decision_rule: "Does this need permission (a boss, capital allocators) or is it permissionless (I can build/publish it today)? Prefer permissionless; use the minimum labor leverage."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Product and media are the new leverage … permissionless … code lets you tell the robot army what to do. You want the minimum amount of labor leverage."
+
+  - id: lev-06
+    statement: "Specific knowledge is the un-trainable skill found by following genuine curiosity — it feels like play to you but work to others."
+    decision_rule: "Does this use what is play to me but work to others (my specific knowledge)? If anyone hireable could do it → commodity → low moat → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Specific knowledge is found by pursuing your curiosity / can't be trained / will feel like play to you."
+
+  - id: lev-07
+    statement: "Escape competition through authenticity — no one can compete with you at being you."
+    decision_rule: "Am I competing head-on on a commodity axis, or winning by being uniquely myself? Pure head-on competition → race to the bottom → reframe around what only I can offer."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Escape competition through authenticity."
+
+  - id: lev-08
+    statement: "Products with zero marginal cost of reproduction (code, media) scale wealth without scaling effort."
+    decision_rule: "What's the cost of producing one more unit? Near-zero → scalable leverage; high/linear → labor-bound → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Zero marginal cost of reproduction: producing more is free. Scale economies: the more you produce, the cheaper it gets."
+
+  - id: lev-09
+    statement: "Get paid for value created — ideally in equity and discrete lumps — not for hours logged."
+    decision_rule: "Is my pay tied to value created (equity, outcomes, royalties) or to time logged? Tied to hours → caps upside → flag."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Ideally, you'll make your money in discrete lumps … Accountability is how you're going to get equity."
+
+  - id: lev-10
+    statement: "Network-effect businesses (value grows as users grow) tend toward natural monopolies — the strongest leverage compounds with scale."
+    decision_rule: "Does each new user make the product more valuable to other users? Yes → defensible compounding; no → commodity that competes on price."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Network effects: value grows as the square of the customers … natural monopolies."
+
+  - id: lev-11
+    statement: "The internet lets you scale any niche obsession to a global audience — go narrow and deep, not broad."
+    decision_rule: "Is there a global niche for my specific obsession I can reach permissionlessly? Then specialize hard rather than dilute to a broad average."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "The Internet allows you to scale any niche obsession … massively broadened the possible space of careers."
+
+  - id: lev-12
+    statement: "Ethical wealth creation is positive-sum — you get rich by making abundance for others, not by extracting it."
+    decision_rule: "Does this create new value (positive-sum) or just transfer/extract it (zero-sum, status game)? Zero-sum → fragile and attackable → reconsider."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "Ethical wealth creation makes abundance for the world … Product leverage is a positive-sum game."
+    tension_with: equ-06  # creating wealth vs. the hedonic emptiness of chasing it
+
+  - id: lev-13
+    statement: "Combine specific knowledge, accountability, and leverage to 'productize yourself.'"
+    decision_rule: "Am I packaging my specific knowledge into something that scales under my own name? Generic or anonymous → weaker leverage → sharpen the specificity."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "Productize yourself: specific knowledge + accountability + leverage."
+
+  - id: lev-14
+    statement: "A fixed monthly salary trains dependence and caps upside — it is optimized against wealth."
+    decision_rule: "Does this lock me into trading time for a fixed wage with no equity and no asymmetric upside? → fragile income, not wealth → weigh hard against the freedom it costs."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "The most dangerous things are heroin and a monthly salary."
+    tension_with: anti-02  # also a fragility/optionality point

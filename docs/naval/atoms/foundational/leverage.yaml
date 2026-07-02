@@ -1,0 +1,11 @@
+# Map: Wealth & Leverage — FOUNDATIONAL pass (Task 5)
+# EMPTY by design. The pack registers Naval alone as this map's thinker — the
+# leverage framework IS Naval's original contribution, so there is no
+# foundational author to mint under (mirrors the canonical persuasion.yaml
+# precedent). Candidates if the user later wants them: Paul Graham (Superlinear
+# Returns, How to Make Wealth — src 305/306) and The Sovereign Individual
+# (src 308). Deutsch's wealth-as-knowledge grounds lev-01 from the epistemology
+# file (epif-05) instead.
+map: leverage
+source_tier: foundational
+atoms: []

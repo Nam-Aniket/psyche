@@ -1,0 +1,49 @@
+# Task 6 — Tier-2 evidence: Joe Rogan Experience #1309
+# provenance: machine transcription (faster-whisper) — faithful but unverified;
+# quotes lightly punctuated, wording preserved.
+source: "Joe Rogan Experience #1309"
+source_id: 268
+source_date: "2019-06"
+source_tier: evidence
+items:
+  - id: jre1309-01
+    rule: equ-09
+    stance: origin
+    chunk: 77
+    quote: "Peace to me, peace is happiness at rest and happiness is kind of peace and motion. You can convert peace to happiness anytime you want but peace is what you want most of the time."
+    note: "The EXACT peace-at-rest/peace-in-motion formulation spoken in June 2019 — ~9 months before the 'Peace Is Happiness in Motion' essay (2020-03). The canonical rule's true origin is this conversation."
+
+  - id: jre1309-02
+    rule: equ-01
+    stance: confirms
+    chunk: 109
+    quote: "But just be very careful of your desires. This is the oldest most trite wisdom — desire is suffering."
+    note: "Desire-is-suffering restated; chunk 16 adds the practical cap: 'you have to have desires, you have a mission, but don't have too many, don't pick them up unconsciously.'"
+
+  - id: jre1309-03
+    rule: lev-05
+    stance: refines
+    chunk: 12
+    quote: "Especially when applied to modern technology and leverage in this age of infinite leverage that we live in."
+    note: "'Age of infinite leverage' — the permissionless-leverage claim upgraded to its strongest form."
+
+  - id: jre1309-04
+    rule: lev-13
+    stance: confirms
+    chunk: 102
+    quote: "Because of this unique what I call specific knowledge, because of the accountability that you have with your name, because the leverage that you have through your media — you're a money-making machine."
+    note: "The productize-yourself triad (specific knowledge + accountability + leverage) applied live to a concrete person."
+
+  - id: jre1309-05
+    rule: jud-01
+    stance: refines
+    chunk: 18
+    quote: "A clear mind leads to better judgment leads to better outcome. So a happy calm peaceful person will make better decisions and have better outcomes."
+    note: "Couples the equanimity map to the judgment map causally: peace is upstream of judgment — key cross-map dependency."
+
+  - id: jre1309-06
+    rule: jud-05
+    stance: confirms
+    chunk: 5
+    quote: "I would rather read the best hundred books over and over again until I absorb them rather than read all the books."
+    note: "Depth-over-breadth reading restated at its extreme."
