@@ -6,6 +6,7 @@ with nothing written, so the brain never ends up half-populated with garbage.
 """
 import glob
 import os
+from datetime import datetime, timezone
 
 import yaml
 
@@ -70,6 +71,20 @@ def resolve_rule_id(conn, statement, domain="naval"):
 # atom grounds; `tension_with` is symmetric (deduped in both directions).
 LINK_FIELDS = (("supports", "supports"), ("tension_with", "tension"))
 
+EVIDENCE_STANCES = {"origin", "confirms", "refines", "strains"}
+
+
+def _index_atoms(dirs):
+    """atom-id -> atom dict across all *.yaml directly under each dir."""
+    index = {}
+    for d in dirs:
+        for path in sorted(glob.glob(os.path.join(d, "*.yaml"))):
+            _, _, atoms = load_atoms_file(path)
+            for a in atoms:
+                if a.get("id"):
+                    index[str(a["id"])] = a
+    return index
+
 
 def link_atoms_dirs(conn, dirs, domain="naval"):
     """Materializes supports/tension_with atom-id references into rule_links.
@@ -83,13 +98,7 @@ def link_atoms_dirs(conn, dirs, domain="naval"):
              unresolved: [(atom_id, link_type, target_atom_id)],
              skipped_existing: int}.
     """
-    index = {}
-    for d in dirs:
-        for path in sorted(glob.glob(os.path.join(d, "*.yaml"))):
-            _, _, atoms = load_atoms_file(path)
-            for a in atoms:
-                if a.get("id"):
-                    index[str(a["id"])] = a
+    index = _index_atoms(dirs)
 
     written, unresolved, skipped = [], [], 0
     for aid, a in index.items():
@@ -116,3 +125,85 @@ def link_atoms_dirs(conn, dirs, domain="naval"):
                              as_of=a.get("source_date"), source=a.get("source"))
             written.append((aid, ltype, target))
     return {"written": written, "unresolved": unresolved, "skipped_existing": skipped}
+
+
+def load_evidence_dir(conn, evidence_dir, atoms_dirs, domain="naval"):
+    """Loads Tier-2 evidence YAMLs: dated quotes attached to existing rules,
+    plus evolution links. Two-phase and fail-closed like load_atoms_dir.
+
+    Evidence never mints rules. Each file carries source/source_date; each item
+    carries {id, rule, stance, quote, note}; each evolution carries
+    {from, to, as_of, why, current_stance} — the link is written to rule_links
+    (type 'evolution', rule_a = earlier principle) and current_stance is set on
+    the `from` rule. Idempotent: an existing (rule_id, quote) evidence row or
+    (rule_a, rule_b) evolution link is skipped; current_stance is (re)applied.
+
+    Returns {evidence, skipped, evolutions, stances_set, by_rule}.
+    """
+    index = _index_atoms(atoms_dirs)
+
+    def rule_id_for(atom_id, ctx, errors):
+        atom = index.get(str(atom_id))
+        if not atom:
+            errors.append(f"{ctx}: unknown atom id '{atom_id}'")
+            return None
+        rid = resolve_rule_id(conn, atom["statement"], domain)
+        if rid is None:
+            errors.append(f"{ctx}: atom '{atom_id}' has no rules row (not loaded yet?)")
+        return rid
+
+    # Phase 1 — parse + validate everything. No DB writes yet.
+    errors, to_write, evolutions = [], [], []
+    for path in sorted(glob.glob(os.path.join(evidence_dir, "*.yaml"))):
+        doc = yaml.safe_load(open(path, encoding="utf-8")) or {}
+        fname = os.path.basename(path)
+        source, as_of = doc.get("source"), doc.get("source_date")
+        if not source or not as_of:
+            errors.append(f"{fname}: missing file-level source/source_date")
+        for it in (doc.get("items") or []):
+            ctx = it.get("id", f"{fname}:item")
+            for field in ("id", "rule", "quote", "stance"):
+                if not str(it.get(field, "")).strip():
+                    errors.append(f"{ctx}: missing {field}")
+            if it.get("stance") and it["stance"] not in EVIDENCE_STANCES:
+                errors.append(f"{ctx}: invalid stance '{it['stance']}'")
+            rid = rule_id_for(it.get("rule"), ctx, errors)
+            if rid is not None:
+                to_write.append((rid, it, source, as_of))
+        for ev in (doc.get("evolutions") or []):
+            ctx = ev.get("id", f"{fname}:evolution")
+            for field in ("from", "to", "as_of", "why", "current_stance"):
+                if not str(ev.get(field, "")).strip():
+                    errors.append(f"{ctx}: missing {field}")
+            a = rule_id_for(ev.get("from"), ctx, errors)
+            b = rule_id_for(ev.get("to"), ctx, errors)
+            if a is not None and b is not None:
+                evolutions.append((a, b, ev, source))
+    if errors:
+        raise ValueError("; ".join(errors))
+
+    # Phase 2 — write the validated set.
+    written = skipped = links = stances = 0
+    by_rule = {}
+    for rid, it, source, as_of in to_write:
+        if conn.execute("SELECT 1 FROM rule_evidence WHERE rule_id = ? AND quote = ?",
+                        (rid, it["quote"])).fetchone():
+            skipped += 1
+            continue
+        db.add_rule_evidence(conn, rid, it["quote"], note=it.get("note"),
+                             stance=it["stance"], source=source, as_of=as_of)
+        written += 1
+        by_rule[it["rule"]] = by_rule.get(it["rule"], 0) + 1
+    for a, b, ev, source in evolutions:
+        if not conn.execute(
+                "SELECT 1 FROM rule_links WHERE link_type = 'evolution' AND rule_a = ? AND rule_b = ?",
+                (a, b)).fetchone():
+            db.add_rule_link(conn, a, b, "evolution",
+                             as_of=ev["as_of"], why=ev["why"], source=source)
+            links += 1
+        conn.execute("UPDATE rules SET current_stance = ?, updated_at = ? WHERE id = ?",
+                     (ev["current_stance"], datetime.now(timezone.utc).isoformat(), a))
+        conn.commit()
+        stances += 1
+    return {"evidence": written, "skipped": skipped, "evolutions": links,
+            "stances_set": stances, "by_rule": by_rule}

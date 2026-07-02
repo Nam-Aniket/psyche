@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 # Current schema version. Bump this whenever the schema changes and append a
 # matching (version, callable) pair to MIGRATIONS below.
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def _create_atomic_memory_tables(conn: sqlite3.Connection):
@@ -95,6 +95,26 @@ def _migrate_v4_naval_rules(conn: sqlite3.Connection):
     """)
 
 
+def _migrate_v5_rule_evidence(conn: sqlite3.Connection):
+    """v5: dated Tier-2 evidence quotes attached to rules.
+
+    Podcasts and interviews never mint rules — they cite them. Each row is a
+    verbatim quote attached to an existing rule with a stance
+    (origin/confirms/refines/strains) and the utterance date."""
+    conn.cursor().execute("""
+        CREATE TABLE IF NOT EXISTS rule_evidence (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            rule_id INTEGER NOT NULL,
+            quote TEXT NOT NULL,
+            note TEXT,
+            stance TEXT,
+            source TEXT,
+            as_of TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+
 # Ordered list of (target_version, migration_callable) pairs. Each callable
 # receives an open sqlite3.Connection and upgrades the schema to target_version.
 # Version 1 is the baseline schema (created idempotently in init_db).
@@ -102,6 +122,7 @@ MIGRATIONS = [
     (2, _migrate_v2_atomic_memories),
     (3, _migrate_v3_actionable_and_project),
     (4, _migrate_v4_naval_rules),
+    (5, _migrate_v5_rule_evidence),
 ]
 
 def resolve_db_path(db_path: str = None) -> str:
@@ -333,6 +354,9 @@ def init_db(db_path: str):
 
     # Apply v4 naval-engine columns + rule_links (idempotent, same convergence).
     _migrate_v4_naval_rules(conn)
+
+    # Apply v5 rule_evidence table (idempotent, same convergence).
+    _migrate_v5_rule_evidence(conn)
 
     # Apply schema versioning / migrations now that all tables exist.
     _run_migrations(conn)
@@ -1249,6 +1273,22 @@ def add_rule_link(conn: sqlite3.Connection, rule_a: int, rule_b: int, link_type:
         "INSERT INTO rule_links (rule_a, rule_b, link_type, as_of, why, source, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
         (rule_a, rule_b, link_type, as_of, why, source, now)
+    )
+    conn.commit()
+    return cursor.lastrowid
+
+
+def add_rule_evidence(conn: sqlite3.Connection, rule_id: int, quote: str, note: str = None,
+                      stance: str = None, source: str = None, as_of: str = None) -> int:
+    """Attaches a dated Tier-2 evidence quote to an existing rule. Evidence
+    never mints rules — it cites them. stance is one of
+    origin | confirms | refines | strains. Returns the evidence row ID."""
+    cursor = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor.execute(
+        "INSERT INTO rule_evidence (rule_id, quote, note, stance, source, as_of, created_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (rule_id, quote, note, stance, source, as_of, now)
     )
     conn.commit()
     return cursor.lastrowid
