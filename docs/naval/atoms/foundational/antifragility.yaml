@@ -1,0 +1,69 @@
+# Map: Risk & Optionality — FOUNDATIONAL pass (Task 5)
+# Taleb's machinery under Naval's thin canonical layer (anti-01..03). Grounded
+# in src 292 Antifragile, 294 Fooled by Randomness, 297 Black Swan, 307 Skin in
+# the Game.
+map: antifragility
+source_tier: foundational
+atoms:
+  - id: antf-01
+    statement: "Barbell: extreme safety on most of your resources plus small, aggressive, convex bets — nothing in the fragile middle."
+    decision_rule: "Is my exposure structured as safe-core + small wild bets, or is everything 'medium risk'? The middle hides fragility → restructure to the barbell."
+    source: "Antifragile — Nassim Taleb"
+    source_date: "2012-11-27"
+    principle_type: axiom
+    supports: anti-02
+    evidence: "The barbell strategy in life and things as the transformation of anything from fragile to antifragile. (src 292 #9)"
+
+  - id: antf-02
+    statement: "Via negativa: knowledge, health, and robustness grow more by removal than by addition — subtraction has fewer side effects."
+    decision_rule: "Before adding anything (habit, feature, commitment, position), ask what removal would achieve the same goal. Prefer subtracting the harmful over adding the clever."
+    source: "Antifragile — Nassim Taleb"
+    source_date: "2012-11-27"
+    principle_type: axiom
+    supports: equ-06
+    evidence: "Book VI: Via Negativa — Subtractive Knowledge … Less Is More. Looking at the future by via negativa. (src 292 #5, #11)"
+
+  - id: antf-03
+    statement: "Optionality substitutes for prediction — with convex payoffs you don't need to know the future, only to hold options and press what works."
+    decision_rule: "Do I need to be right to win here, or do I just need exposure plus the option to press when it works? Prefer positions where being wrong is cheap and being right is unbounded."
+    source: "Antifragile — Nassim Taleb"
+    source_date: "2012-11-27"
+    principle_type: derived
+    supports: anti-02
+    evidence: "Book IV: Optionality, Technology, and the Intelligence of Antifragility — Do You Really Know Where You Are Going? The Teleological Fallacy. (src 292 #3)"
+
+  - id: antf-04
+    statement: "When ruin is possible, cost-benefit analysis is invalid — no expected value justifies crossing an absorbing barrier."
+    decision_rule: "Is there any absorbing barrier here (death, bankruptcy, reputation destruction, irreversibility)? If yes → expected-value reasoning does not apply → refuse regardless of upside."
+    source: "Skin in the Game — Nassim Taleb"
+    source_date: "2018-02-27"
+    principle_type: axiom
+    supports: anti-03
+    evidence: "Let us call these situations 'ruin,' as there is no reversibility away from the condition. The central problem is that if there is a possibility of ruin, cost-benefit analyses are no longer possible. (src 307 #400)"
+
+  - id: antf-05
+    statement: "Lindy: the old outlives the new in proportion to its age — survival time is the only unfoolable judge of ideas and technologies."
+    decision_rule: "How long has this idea, practice, or technology already survived? Expected remaining life is proportional to current age → weight the centuries-old over this year's fashion."
+    source: "Antifragile — Nassim Taleb"
+    source_date: "2012-11-27"
+    principle_type: derived
+    supports: jud-04
+    evidence: "The Lindy effect: the old outlives the new in proportion to its age … how the old prevails over the new, especially in technology. (src 292 #11, #621)"
+
+  - id: antf-06
+    statement: "The turkey problem: absence of harm so far is not evidence of safety — the biggest risks sit outside past data."
+    decision_rule: "Is my confidence based only on 'it hasn't happened yet'? A thousand calm days say nothing about day 1,001 → never size a bet off a calm history alone."
+    source: "The Black Swan — Nassim Taleb"
+    source_date: "2007-04-17"
+    principle_type: axiom
+    supports: anti-01
+    evidence: "One Thousand and One Days, or How Not to Be a Sucker — How to Learn from the Turkey. (src 297 #3, #128)"
+
+  - id: antf-07
+    statement: "Judge decisions across alternative histories, not by the single realized outcome — a lucky result is not a good decision."
+    decision_rule: "Would this choice look good across the full set of histories that could have unfolded, or only in the one that happened? Grade the process, not the outcome."
+    source: "Fooled by Randomness — Nassim Taleb"
+    source_date: "2001-01-01"
+    principle_type: axiom
+    supports: anti-01
+    evidence: "On alternative histories, a probabilistic view of the world … Russian roulette: the $10 million won this way does not have the same value as $10 million earned diligently. (src 294 #38, #97)"

@@ -1,0 +1,54 @@
+# Task 6 — Tier-2 evidence: The Knowledge Project #18 (The Angel Philosopher)
+source: "The Knowledge Project #18 — The Angel Philosopher"
+source_id: 273
+source_date: "2017-02"
+source_tier: evidence
+items:
+  - id: tkp018-01
+    rule: equ-02
+    stance: origin
+    chunk: 25
+    quote: "Today, I believe that happiness is, it's really a default state. It's what's there when you remove the sense that something is missing in your life."
+    note: "The 'nothing is missing' definition, verbatim, three years before the 2020 Desire essay — the canonical form's origin."
+
+  - id: tkp018-02
+    rule: equ-03
+    stance: refines
+    chunk: 25
+    quote: "My definition keeps evolving. The answer I would have given you a year ago will be different than what I tell you now."
+    note: "Naval explicitly flags his happiness definitions as evolving — self-endorsed instability of the aphorisms, which is exactly what MW-922 (2025) later makes explicit. Key lineage context for the evolution link."
+
+  - id: tkp018-03
+    rule: equ-04
+    stance: confirms
+    chunk: 106
+    quote: "The idea that you're going to change something in the outside world and that is going to bring you the peace and everlasting joy and the happiness that you deserve, that is a fundamental delusion that we all suffer from."
+    note: "External-acquisition-won't-last, in its strongest phrasing ('fundamental delusion')."
+
+  - id: tkp018-04
+    rule: equ-05
+    stance: refines
+    chunk: 16
+    quote: "I tried to build a meditation habit but I failed. I have made a habit of being 'meditative.'"
+    note: "Meditation arc step 2: formal practice abandoned for a continuous meditative disposition — method shifts, the self-understanding goal stays."
+
+  - id: tkp018-05
+    rule: jud-01
+    stance: refines
+    chunk: 78
+    quote: "It's not about having correct judgment. It's about avoiding the incorrect judgments."
+    note: "Naval's own inversion of judgment — the via-negativa/Munger form (cf. foundational judf-01) stated as his operating rule."
+
+  - id: tkp018-06
+    rule: jud-01
+    stance: confirms
+    chunk: 76
+    quote: "If I'm managing $1 billion and I'm right 10% more of the time than somebody else, then that's $100 million worth of value on a judgment call."
+    note: "Quantifies why judgment is the multiplier on leverage — the jud×lev coupling."
+
+  - id: tkp018-07
+    rule: coop-01
+    stance: confirms
+    chunk: 35
+    quote: "I only want to work on things that I know have long-term payout. Another one is I only believe in peer relationships. I don't believe in hierarchical relationships."
+    note: "Long-term-games as a personal filter in 2017; adds the peer-relationships corollary."

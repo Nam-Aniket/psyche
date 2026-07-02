@@ -1,0 +1,74 @@
+# Map: Persuasion — FOUNDATIONAL pass (Task 5)
+# The canonical layer is EMPTY by design (Naval names persuasion as a top-2
+# skill but doesn't theorize it). The entire mechanics layer is Cialdini.
+# Grounded in the English "Influence: New and Expanded" (2021) PDF — page refs
+# below — and Pre-Suasion (src 281, already ingested). NOTE: the English
+# Influence PDF is NOT yet in the corpus DB (only the excluded French edition
+# was); ingestion is bundled into the Task 5 approval.
+map: persuasion
+source_tier: foundational
+atoms:
+  - id: persf-01
+    statement: "Reciprocation: people repay in kind — receipt of a favor creates obligation, so genuine giving precedes getting."
+    decision_rule: "In any ask, have I given genuine value first? Lead with the gift. And when receiving, notice manufactured debt (free samples, unsolicited favors) before it steers my yes."
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: axiom
+    supports: jud-07
+    evidence: "The rule requires that one person try to repay, in form, what another person has provided … we are obligated to the future repayment of favors, gifts, invitations. (Influence pp. 33, 73)"
+
+  - id: persf-02
+    statement: "Commitment and consistency: once people take a stand — especially voluntarily, publicly, and with effort — they align future behavior with it."
+    decision_rule: "To move someone (or myself) toward a behavior, secure a small, voluntary, public first step. To defend: when saying yes, check whether a past commitment rather than present merit is driving it."
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: axiom
+    evidence: "It is our desire to be (and to appear) consistent with what we have already said or done. Once we make a choice or take a stand, we encounter personal and interpersonal pressures to behave consistently with that commitment. (Influence p. 266)"
+
+  - id: persf-03
+    statement: "Social proof: we view an action as correct to the degree we see others performing it — strongest under uncertainty and among similar others."
+    decision_rule: "To persuade, show evidence of many similar others already doing it. To defend: when the pull is 'everyone's doing it,' check the ground truth — proof can be engineered."
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: axiom
+    evidence: "We view an action as correct in a given situation to the degree that we see others performing it. (Influence p. 125)"
+
+  - id: persf-04
+    statement: "Liking: we say yes to people we like — similarity, compliments, cooperation, and familiarity all manufacture liking."
+    decision_rule: "Build genuine similarity and cooperative contact before the ask. When being sold to, separate the seller's likability from the deal's merits — they are engineered to blur."
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: derived
+    evidence: "We are more influenced by the people we like … this simple liking rule can apply to individuals we've never interacted with closely or even met. (Influence p. 75)"
+
+  - id: persf-05
+    statement: "Authority: symbols of authority (titles, uniforms, trappings) trigger deference as strongly as its substance, especially in click-run mode."
+    decision_rule: "Establish real, relevant credentials before asking. When complying, ask: is this authority real, relevant, and truthful here — or am I responding to its symbols?"
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: derived
+    evidence: "When in a click, run mode, we are often as vulnerable to the symbols of authority as to its substance. (Influence p. 198)"
+
+  - id: persf-06
+    statement: "Scarcity: opportunities seem more valuable as they become less available — potential loss moves people more than equivalent gain."
+    decision_rule: "State what is genuinely scarce or unique and what is lost by waiting. When buying, ask: do I want the thing itself, or am I just afraid of losing access to it?"
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: axiom
+    evidence: "The scarcity principle — opportunities seem more valuable to us when they are less available. (Influence p. 225)"
+
+  - id: persf-07
+    statement: "Unity: shared identity — the 'we' that is the shared me — is the deepest lever; people favor those inside their 'we'-group."
+    decision_rule: "Find or build the authentic shared identity (family, place, values, co-creation) before persuading. And notice when a tribal 'we' is overriding my own judgment of the merits."
+    source: "Influence: New and Expanded — Robert Cialdini"
+    source_date: "2021-05-04"
+    principle_type: derived
+    evidence: "Unity: The 'We' Is the Shared Me — members of 'we'-based groups favor the outcomes and well-being of fellow members. (Influence ch. 8, p. 328)"
+
+  - id: persf-08
+    statement: "Pre-suasion: what is focal seems important and causal — the moment of channeled attention before the message decides its fate."
+    decision_rule: "Choose what the audience attends to immediately before the ask (the privileged moment). And notice what a communicator got me to focus on right before their pitch."
+    source: "Pre-Suasion — Robert Cialdini"
+    source_date: "2016-09-06"
+    principle_type: derived
+    evidence: "Privileged moments: identifiable points in time when an individual is particularly receptive … the human tendency to assign undue importance to an idea as soon as one's attention is turned to it. (src 281 #30-32)"

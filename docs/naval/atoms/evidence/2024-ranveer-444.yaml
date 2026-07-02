@@ -1,0 +1,28 @@
+# Task 6 — Tier-2 evidence: The Ranveer Show #444
+# provenance: machine transcription — faithful but unverified.
+# source_date at YEAR precision (episode publication month not confirmed).
+source: "The Ranveer Show #444"
+source_id: 310
+source_date: "2024"
+source_tier: evidence
+items:
+  - id: trs444-01
+    rule: equ-09
+    stance: confirms
+    chunk: 31
+    quote: "You know how you said that happiness is peace and motion? That's something that stayed with me over the years and it's something I practice."
+    note: "Host-prompted (Ranveer quoting Naval's peace-in-motion line back to him); Naval engages without correction — the 2020 formulation still standing in 2024."
+
+  - id: trs444-02
+    rule: equ-01
+    stance: refines
+    chunk: 63
+    quote: "You are a desiring creature, but you just have to be careful with your desires because they will take you away from the truth. Because true reasoning is unmotivated or it's motivated purely by curiosity."
+    note: "New consequence: desires distort epistemics, not just peace — unchosen desires corrupt reasoning itself (couples equanimity to the judgment/epistemology maps)."
+
+  - id: trs444-03
+    rule: jud-01
+    stance: refines
+    chunk: 60
+    quote: "Especially in an age where we have so much leverage in the system, either through code or media or through other people or through capital, the quality of your decision making dominates everything."
+    note: "Judgment dominance stated as a function of the leverage age — the more leverage, the more judgment is the binding constraint."

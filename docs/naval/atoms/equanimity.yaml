@@ -1,0 +1,96 @@
+# Map: Happiness & Desire — CANONICAL pass (Naval's own words)
+# The densest canonical map. eq-03 is the EVOLUTION anchor — Task 6 attaches the
+# 2025 Modern Wisdom shift ("distrust the word happiness") as a dated evolution link.
+map: equanimity
+source_tier: canonical
+atoms:
+  - id: equ-01
+    statement: "Desire is a contract you make with yourself to be unhappy until you get what you want."
+    decision_rule: "Before committing to pursue something, ask: am I signing a contract to be unhappy until I get it? Pick desires deliberately — each one is a chosen unhappiness, so keep them few and worth it."
+    source: "Desire (nav.al)"
+    source_date: "2020-02-10"
+    principle_type: axiom
+    evidence: "Desire's a contract you make to be unhappy until you get what you want."
+
+  - id: equ-02
+    statement: "Happiness is returning to the state where nothing is missing in this moment."
+    decision_rule: "Does this decision assume happiness arrives WHEN I finally get X? If so I'm deferring a state available right now → don't price future happiness into the choice."
+    source: "Desire (nav.al)"
+    source_date: "2020-02-10"
+    principle_type: axiom
+    evidence: "Happiness is returning to the state where nothing is missing in this moment."
+
+  - id: equ-03
+    statement: "Happiness is a skill you develop and a choice you make, not a thing you obtain."
+    decision_rule: "Am I treating happiness as an outcome to acquire, or a skill to practice? Acquire-framing is the trap → reframe as a practice."
+    source: "Happiness (nav.al)"
+    source_date: "2021-03-12"
+    principle_type: axiom
+    evidence: "Naval's 2020-2021 canonical framing. EVOLUTION ANCHOR: by 2025 (Modern Wisdom #922) he disavows this crisp form — 'I'm not sure that statement is true anymore' — preferring peace/equanimity over the word 'happiness'. Task 6 links it."
+
+  - id: equ-04
+    statement: "No single external thing will make you happy forever — the hedonic baseline resets."
+    decision_rule: "Am I betting lasting happiness on one acquisition or achievement? The baseline resets → it won't last → discount the emotional payoff in the decision."
+    source: "Desire (nav.al)"
+    source_date: "2020-02-10"
+    principle_type: axiom
+    evidence: "No single thing will make you happy forever … net happiness per person is not going up."
+
+  - id: equ-05
+    statement: "Lasting happiness is a process of understanding and self-discovery, not a one-time fix."
+    decision_rule: "Am I looking for a one-time fix (a purchase, a milestone), or doing the ongoing work of understanding myself? One-time fix → illusion."
+    source: "Desire (nav.al)"
+    source_date: "2020-02-10"
+    principle_type: derived
+    evidence: "Achieving happiness requires a process of understanding and self-discovery."
+
+  - id: equ-06
+    statement: "Happiness is the absence of desire, especially desire for external things."
+    decision_rule: "What desire is driving this? If it's desire for external validation or status, recognize the cost it imposes on present peace before paying it."
+    source: "The Almanack of Naval Ravikant"
+    source_date: "2020-09-01"
+    principle_type: derived
+    evidence: "It's about the absence of desire, especially the absence of desire for external things."
+    tension_with: lev-12  # creating wealth (positive-sum, good) vs desire for external things
+
+  - id: equ-07
+    statement: "Stress is an inability to decide what's important — wanting two incompatible things at once."
+    decision_rule: "Am I stressed because I'm trying to hold incompatible wants at once (doing 4 things)? The fix is to DECIDE what's important and drop the rest — not to do all of them."
+    source: "Peace Is Happiness in Motion (nav.al)"
+    source_date: "2020-03-05"
+    principle_type: axiom
+    evidence: "Stress is an inability to decide what's important. You want two incompatible things at once."
+    serves: focus_arbitration
+
+  - id: equ-08
+    statement: "When you accept that something is out of your control, there is no point being stressed about it."
+    decision_rule: "Is the thing I'm anxious about within my control? If not → accept and release it; if yes → act on it. The stress in between is wasted."
+    source: "Peace Is Happiness in Motion (nav.al)"
+    source_date: "2020-03-05"
+    principle_type: derived
+    evidence: "When you accept that something's out of your control, there's no point in getting stressed about it."
+
+  - id: equ-09
+    statement: "Peace is happiness at rest; happiness is peace in motion — they are the same underlying state."
+    decision_rule: "Am I sacrificing peace to chase stimulation? Both are the same state; don't trade durable peace for a hit of motion."
+    source: "Peace Is Happiness in Motion (nav.al)"
+    source_date: "2020-03-05"
+    principle_type: derived
+    evidence: "Title principle; peace and happiness are the same state at rest vs in motion."
+
+  - id: equ-10
+    statement: "We pursue wealth, then health, then happiness — but their importance runs in the reverse order."
+    decision_rule: "Am I sacrificing health or happiness (more important) to chase wealth (less important)? → re-rank; protect the higher-importance ones first."
+    source: "The Almanack of Naval Ravikant"
+    source_date: "2020-09-01"
+    principle_type: axiom
+    evidence: "The three big ones in life are wealth, health, and happiness. We pursue them in that order, but their importance is reverse."
+    serves: life_habit
+
+  - id: equ-11
+    statement: "A happy person isn't happy all the time — they interpret events so as not to lose their innate peace."
+    decision_rule: "Is my reaction to this event protecting or destroying my baseline peace? I can choose the interpretation — pick the one that keeps the peace without denying reality."
+    source: "The Almanack of Naval Ravikant"
+    source_date: "2020-09-01"
+    principle_type: derived
+    evidence: "A happy person effortlessly interprets events so they don't lose their innate peace."
