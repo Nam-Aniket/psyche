@@ -25,6 +25,33 @@ atoms:
 
 EMPTY = "map: persuasion\nsource_tier: canonical\natoms: []\n"
 
+LINKED = textwrap.dedent("""
+map: antifragility
+source_tier: foundational
+atoms:
+  - id: f-01
+    statement: "Barbell your risk."
+    decision_rule: "Everything medium-risk -> restructure."
+    source: "Antifragile - Taleb"
+    source_date: "2012-11-27"
+    principle_type: axiom
+    supports: t-01
+  - id: f-02
+    statement: "Via negativa."
+    decision_rule: "Remove before adding."
+    source: "Antifragile - Taleb"
+    source_date: "2012-11-27"
+    principle_type: axiom
+    supports: missing-99
+  - id: f-03
+    statement: "Judge across alternative histories."
+    decision_rule: "Grade the process, not the outcome."
+    source: "Fooled by Randomness - Taleb"
+    source_date: "2001-01-01"
+    principle_type: axiom
+    tension_with: t-01
+""")
+
 
 class TestNavalLoad(unittest.TestCase):
     def setUp(self):
@@ -54,6 +81,30 @@ class TestNavalLoad(unittest.TestCase):
         rule = grouped["leverage"][0]
         self.assertEqual(rule["map"], "leverage")
         self.assertEqual(rule["source_tier"], "canonical")
+
+    def test_link_pass_materializes_supports_and_tensions(self):
+        load.load_atoms_dir(self.conn, self.dir)
+        fdir = os.path.join(self.dir, "foundational")
+        os.makedirs(fdir)
+        with open(os.path.join(fdir, "antifragility.yaml"), "w") as f:
+            f.write(LINKED)
+        load.load_atoms_dir(self.conn, fdir)
+
+        result = load.link_atoms_dirs(self.conn, [self.dir, fdir])
+        # f-01 supports t-01 and f-03 tension t-01 written; f-02's target is unknown
+        self.assertEqual(sorted(w[0] for w in result["written"]), ["f-01", "f-03"])
+        self.assertEqual(result["unresolved"], [("f-02", "supports", "missing-99")])
+        rows = self.conn.execute(
+            "SELECT rule_a, rule_b, link_type FROM rule_links ORDER BY link_type").fetchall()
+        self.assertEqual(len(rows), 2)
+        self.assertEqual({r[2] for r in rows}, {"supports", "tension"})
+
+        # idempotent: a second pass writes nothing new (tension checked both directions)
+        again = load.link_atoms_dirs(self.conn, [self.dir, fdir])
+        self.assertEqual(again["written"], [])
+        self.assertEqual(again["skipped_existing"], 2)
+        n = self.conn.execute("SELECT count(*) FROM rule_links").fetchone()[0]
+        self.assertEqual(n, 2)
 
     def test_fail_closed_leaves_no_partial_writes(self):
         # An invalid rule-atom must abort the whole load before anything is written.
