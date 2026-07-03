@@ -87,7 +87,7 @@ def main():
         import argparse
         ap = argparse.ArgumentParser(prog="psyche connect")
         ap.add_argument("client", nargs="?",
-                        choices=["claude-code", "codex", "gemini", "antigravity"],
+                        choices=["claude-code", "codex", "gemini", "antigravity", "cursor"],
                         help="agent to wire; omit to auto-wire every detected agent")
         ap.add_argument("--dry-run", action="store_true")
         a = ap.parse_args()
