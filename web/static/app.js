@@ -1080,7 +1080,7 @@
       h('button', { class: 'btn btn--primary', style: 'white-space:nowrap', onClick: () => runBrief(input.value) }, 'Generate brief'));
     const briefEl = h('div', { class: 'coach-brief', id: 'coach-brief' });
     const stateEl = h('div', { class: 'coach-state', id: 'coach-state' });
-    screen.append(head, genRow, briefEl, stateEl);
+    screen.appendChild(h('div', { class: 'screen-pad' }, h('div', { class: 'section-wrap' }, head, genRow, briefEl, stateEl)));
     drawCoachBrief(briefEl); drawCoachState(stateEl); ensureCoachData();
     return screen;
   }
@@ -1180,7 +1180,7 @@
 
     const toolbar = h('div', { class: 'mem-toolbar' }, searchRow, toggle);
     const body = h('div', { class: 'mem-body', id: 'memory-body' });
-    screen.append(head, toolbar, body);
+    screen.appendChild(h('div', { class: 'screen-pad' }, h('div', { class: 'section-wrap' }, head, toolbar, body)));
 
     updateMemStats(stats); drawMemoryBody(body);
     ensureMemoryData();
