@@ -1,0 +1,50 @@
+# Map: Epistemology — FOUNDATIONAL pass (Task 5)
+# Popper (src 279) and Deutsch (src 282) — the machinery under Naval's two
+# canonical epistemic atoms.
+map: epistemology
+source_tier: foundational
+atoms:
+  - id: epif-01
+    statement: "A theory's scientific status is its falsifiability — confirmations count only when they come from risky tests that could have failed."
+    decision_rule: "What observation would prove this belief wrong? If nothing could → it isn't knowledge, it's dogma → don't build decisions on it."
+    source: "Conjectures and Refutations — Karl Popper"
+    source_date: "1963-01-01"
+    principle_type: axiom
+    supports: epi-01
+    evidence: "The criterion of the scientific status of a theory is its falsifiability, or refutability, or testability … confirming evidence should not count except when it is the result of a genuine test. (src 279 #112-113)"
+
+  - id: epif-02
+    statement: "Knowledge grows by bold conjectures controlled by criticism and attempted refutation — not by accumulating justifications."
+    decision_rule: "Treat my plan as a conjecture: what is the cheapest severe test that could refute it? Run that test before scaling commitment — seek refutation, not reassurance."
+    source: "Conjectures and Refutations — Karl Popper"
+    source_date: "1963-01-01"
+    principle_type: axiom
+    supports: jud-02
+    evidence: "Knowledge progresses by unjustified (and unjustifiable) anticipations, by guesses, by tentative solutions … controlled by criticism; that is, by attempted refutations. (src 279 #2)"
+
+  - id: epif-03
+    statement: "Good explanations are hard to vary — every detail plays a functional role; easy-to-vary explanations are useless even when testable."
+    decision_rule: "Could I swap out the details of this explanation and it would 'explain' just as well? Easy to vary → bad explanation → keep digging for the mechanism."
+    source: "The Beginning of Infinity — David Deutsch"
+    source_date: "2011-03-31"
+    principle_type: axiom
+    supports: epi-02
+    evidence: "That is a good explanation — hard to vary, because all its details play a functional role. (src 282 #54)"
+
+  - id: epif-04
+    statement: "Problems are soluble: all evils are caused by insufficient knowledge, and there is no fundamental barrier to creating the knowledge that solves them."
+    decision_rule: "Am I treating this problem as fundamentally unsolvable? It isn't — ask what knowledge would solve it and whether I can create or find that knowledge."
+    source: "The Beginning of Infinity — David Deutsch"
+    source_date: "2011-03-31"
+    principle_type: axiom
+    supports: coop-03
+    evidence: "Problems are soluble … The Principle of Optimism: all evils are caused by insufficient knowledge. (src 282 #132, #418)"
+
+  - id: epif-05
+    statement: "Wealth is the repertoire of physical transformations one is capable of causing — knowledge, not tokens."
+    decision_rule: "Am I accumulating tokens or transformation-capability (knowledge, tools, skills)? Optimize for the repertoire — it can regenerate the tokens, but not vice versa."
+    source: "The Beginning of Infinity — David Deutsch"
+    source_date: "2011-03-31"
+    principle_type: derived
+    supports: lev-01
+    evidence: "Wealth: the repertoire of physical transformations that one is capable of causing. (src 282 #436)"

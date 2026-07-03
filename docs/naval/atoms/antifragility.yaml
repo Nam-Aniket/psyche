@@ -1,0 +1,30 @@
+# Map: Risk & Optionality — CANONICAL pass (Naval's own words)
+# THIN by design: barbell, via negativa, convexity, fat tails are FOUNDATIONAL
+# (Taleb, Task 5). These are the few risk/optionality principles Naval states himself.
+map: antifragility
+source_tier: canonical
+atoms:
+  - id: anti-01
+    statement: "Build wealth in a way that works across almost all outcomes, not on one lucky branch."
+    decision_rule: "If I ran this in 1,000 parallel universes, do I win in most of them, or is it one lucky branch? Concentrated on luck → fragile → restructure to reduce dependence on a single outcome."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: axiom
+    evidence: "In 1,000 parallel universes, you want to be wealthy in 999 of them."
+
+  - id: anti-02
+    statement: "Accept small, frequent, bounded losses in exchange for exposure to large, unbounded gains."
+    decision_rule: "Is the downside bounded and the upside unbounded (convex)? Small bleeds for a shot at a big win → take it. Bounded upside with unbounded downside → avoid."
+    source: "How to Get Rich (tweetstorm)"
+    source_date: "2018-05-31"
+    principle_type: derived
+    evidence: "If you're willing to bleed a little every day, you may win big later."
+    tension_with: lev-14
+
+  - id: anti-03
+    statement: "Survive first — avoid anything carrying ruin (irreversible, total-loss) risk however small its probability."
+    decision_rule: "Does this carry any ruin or irreversible-loss risk? If yes → no size of upside justifies it → avoid. You have to stay in the game to win it."
+    source: "The Almanack of Naval Ravikant"
+    source_date: "2020-09-01"
+    principle_type: axiom
+    evidence: "Naval's canonical echo of avoiding ruin / staying in the game; deepened by Taleb in Task 5."

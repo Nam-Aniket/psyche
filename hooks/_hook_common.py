@@ -24,8 +24,8 @@ def recursion_guard():
 
 def log(msg: str):
     try:
-        import time
-        ts = time.strftime("%Y-%m-%dT%H:%M:%S")
+        from datetime import datetime
+        ts = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         with open(LOG_PATH, "a") as f:
             f.write(f"{ts} {msg.rstrip()}\n")
     except Exception:
@@ -41,6 +41,50 @@ def read_payload() -> dict:
 
 def cwd_from_payload(payload) -> str | None:
     return payload.get("cwd") or payload.get("workspace") or None
+
+
+PSYCHE_CONFIG_PATH = os.path.expanduser("~/.psyche/config.json")
+
+
+def read_config() -> dict:
+    """~/.psyche/config.json as a dict; {} on missing/malformed. PSYCHE_CONFIG
+    env var overrides the path (used by tests)."""
+    try:
+        with open(os.environ.get("PSYCHE_CONFIG") or PSYCHE_CONFIG_PATH) as f:
+            cfg = json.load(f)
+            return cfg if isinstance(cfg, dict) else {}
+    except Exception:
+        return {}
+
+
+def auto_capture_topics(config: dict = None) -> list:
+    """Topics whose sessions get default-on conversation capture. The naval
+    topic is on by default; set auto_capture_topics: [] in config to disable.
+    Topic names are lowercased and restricted to [a-z0-9_-] (they become part
+    of a topic_<name>.db filename)."""
+    cfg = read_config() if config is None else config
+    topics = cfg.get("auto_capture_topics", ["naval"])
+    if not isinstance(topics, list):
+        topics = ["naval"]
+    safe = []
+    for t in topics:
+        t = str(t).lower()
+        if t and all(c.isalnum() or c in "-_" for c in t):
+            safe.append(t)
+    return safe
+
+
+def topic_for_cwd(cwd: str, topics: list) -> str | None:
+    """First topic whose name equals a path component of cwd (case-insensitive),
+    else None. This is how a session declares itself topic-scoped: it runs
+    inside a directory named after the topic (e.g. ~/Downloads/NAVAL)."""
+    if not cwd or not topics:
+        return None
+    parts = {p.lower() for p in os.path.normpath(cwd).split(os.sep) if p}
+    for t in topics:
+        if t in parts:
+            return t
+    return None
 
 
 MEM_LEDGER_PATH = os.path.expanduser("~/.psyche/mem_ledger.jsonl")
@@ -94,6 +138,32 @@ def write_ledger(session_id: str, ids: set):
             json.dump(sorted(ids), f)
     except Exception:
         pass
+
+
+EXTRACT_HEALTH_PATH = os.path.expanduser("~/.psyche/extract_health.json")
+
+
+def write_extract_health(ok: bool, error: str = None):
+    """Records the outcome of the last extraction LLM call so session_start
+    can warn the user instead of extraction failing silently for days."""
+    from datetime import datetime, timezone
+    try:
+        entry = {"ok": ok, "ts": datetime.now(timezone.utc).isoformat()}
+        if error:
+            entry["error"] = error[:200]
+        with open(EXTRACT_HEALTH_PATH, "w") as f:
+            json.dump(entry, f)
+    except Exception:
+        pass
+
+
+def read_extract_health() -> dict:
+    try:
+        with open(EXTRACT_HEALTH_PATH) as f:
+            d = json.load(f)
+            return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
 
 
 def _extract_state_path(session_id: str) -> str:

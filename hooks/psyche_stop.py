@@ -55,6 +55,83 @@ def should_extract(*, now, last_ts, turn_count, last_turn_count,
 INFLIGHT_TTL = 300
 
 
+def iter_recall_messages(path):
+    """Yields (role, text) for each user/assistant message with text content,
+    in transcript order. Same content extraction as transcript_text."""
+    try:
+        with open(path) as f:
+            for line in f:
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("type") not in ("user", "assistant"):
+                    continue
+                message = entry.get("message") or {}
+                role = message.get("role", entry["type"])
+                content = message.get("content")
+                if isinstance(content, str):
+                    texts = [content]
+                elif isinstance(content, list):
+                    texts = [b.get("text", "") for b in content
+                             if isinstance(b, dict) and b.get("type") == "text"]
+                else:
+                    texts = []
+                text = "\n".join(t for t in texts if t).strip()
+                if text:
+                    yield role, text
+    except Exception:
+        return
+
+
+def capture_interactions(payload) -> int:
+    """Default-on conversation capture for auto-capture topics (the naval
+    decision engine): when the session runs inside a directory named after a
+    captured topic, every new user/assistant message since the session's
+    capture watermark is persisted into that topic's memory_recall table.
+
+    Local SQLite inserts only — cheap enough to run inline on every Stop with
+    no gate. Inserts directly via db (not mcp_server.record_interaction_tool:
+    importing mcp_server redirects sys.stdout and pulls heavy deps, neither of
+    which belongs in a per-turn hook). Returns rows written."""
+    import db as _db
+
+    topic = hc.topic_for_cwd(hc.cwd_from_payload(payload), hc.auto_capture_topics())
+    if not topic:
+        return 0
+    session_id = payload.get("session_id", "")
+    path = payload.get("transcript_path", "")
+    if not path or not os.path.exists(path):
+        return 0
+
+    messages = list(iter_recall_messages(path))
+    state = hc.read_extract_state(session_id)
+    start = int(state.get("recall_count", 0) or 0)
+    new = messages[start:]
+    if not new:
+        return 0
+
+    from datetime import datetime, timezone
+    written = 0
+    try:
+        conn = _db.get_connection(_db.resolve_db_path(f"topic_{topic}.db"))
+        try:
+            for role, text in new:
+                conn.execute(
+                    "INSERT INTO memory_recall (session_id, role, content, tool_calls, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (session_id, role, text, None, datetime.now(timezone.utc).isoformat()))
+                written += 1
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as e:
+        hc.log(f"stop {session_id}: capture into topic_{topic} failed: {e}")
+        return written
+    hc.write_extract_state(session_id, {**state, "recall_count": start + written})
+    return written
+
+
 def _run_worker():
     """Detached worker: run the (slow) extraction. On SUCCESS, commit the target
     watermark so this window isn't re-extracted; on FAILURE, leave the previous
@@ -71,7 +148,9 @@ def _run_worker():
     try:
         extract_facts(payload, source="stop")
         if watermark:                       # success: advance + clear in-flight
-            hc.write_extract_state(session_id, watermark)
+            st = hc.read_extract_state(session_id)  # preserve other keys (e.g. the capture watermark)
+            st.pop("inflight_ts", None)
+            hc.write_extract_state(session_id, {**st, **watermark})
     except Exception as e:
         hc.log(f"stop {session_id}: extraction failed, will retry next turn: {e}")
         st = hc.read_extract_state(session_id)   # keep old watermark, drop lock
@@ -97,6 +176,14 @@ def main():
     path = payload.get("transcript_path", "")
     if not path or not os.path.exists(path):
         return
+
+    # Topic auto-capture runs on every stop (no gate — cheap local inserts).
+    try:
+        captured = capture_interactions(payload)
+        if captured:
+            hc.log(f"stop {session_id}: captured {captured} messages")
+    except Exception as e:
+        hc.log(f"stop {session_id}: capture error: {e}")
 
     min_turns = _int_env("PSYCHE_STOP_MIN_TURNS", 4)
     min_minutes = _int_env("PSYCHE_STOP_MIN_MINUTES", 10)

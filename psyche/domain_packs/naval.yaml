@@ -1,0 +1,95 @@
+domain: naval
+description: >-
+  Naval Ravikant decision engine — reason with his mental maps to make sharper
+  life and wealth decisions, not a chatbot that paraphrases him.
+stages:
+  - name: framing
+    description: Name the decision and which maps it activates
+  - name: evaluating
+    description: Apply the relevant maps' decision rules
+  - name: deciding
+    description: Resolve tensions between maps, return a verdict
+  - name: reviewing
+    description: Record the decision and revisit as reality unfolds
+
+# Six always-on lenses — fire on EVERY decision regardless of topic.
+# Also surfaced through diagnostic_questions for the current guidance engine.
+core_lenses:
+  - "Leverage type: labor / capital / code / media / none?"
+  - "Specific-knowledge fit: does this use what is play to me but work to others?"
+  - "Accountability: is my name and real downside on the line?"
+  - "Compounding: an iterated game that compounds, or a one-shot reset?"
+  - "Risk shape: symmetric, asymmetric upside, or asymmetric downside (antifragile)?"
+  - "Equanimity: am I pricing an internal result into an external achievement?"
+
+# The explicit mental-map layer. Every rule-atom is tagged with one map key
+# (rules.map). Output is organized as "Leverage map says X; Antifragility map
+# says Y; they're in tension here."
+maps:
+  leverage:
+    name: "Wealth & Leverage"
+    thinkers: [Naval]
+    covers: "wealth vs money vs status, the four leverages, specific knowledge, ownership/equity"
+  judgment:
+    name: "Judgment / Clear Thinking"
+    thinkers: [Munger, Feynman]
+    covers: "inversion, second-order effects, incentives, opportunity cost, circle of competence, first principles"
+  antifragility:
+    name: "Risk & Optionality"
+    thinkers: [Taleb]
+    covers: "antifragility, barbell, convexity and optionality, via negativa, tail risk"
+  cooperation:
+    name: "Accountability & Cooperation"
+    thinkers: [Naval, Axelrod]
+    covers: "skin in the game, reputation, long-term iterated games, partner selection"
+  epistemology:
+    name: "Epistemology"
+    thinkers: [Popper, Deutsch]
+    covers: "falsifiability, conjecture and refutation, good explanations, error-correction"
+  persuasion:
+    name: "Persuasion"
+    thinkers: [Cialdini]
+    covers: "reciprocity, social proof, commitment, scarcity"
+  equanimity:
+    name: "Happiness & Desire"
+    thinkers: [Naval, Nisargadatta, Kapil Gupta]
+    covers: "desire as the root of suffering, equanimity and presence, happiness as internal and trainable"
+
+# Agent-side output shapes (consumed in later tasks).
+query_templates:
+  - opportunity_evaluation   # should I build/pursue X? -> PURSUE / MODIFY / ELIMINATE
+  - focus_arbitration        # doing N things -> pick the one high-leverage x high-probability bet
+  - decision_audit           # a decision made/about-to-be-made: biases, second-order, inversion
+  - pattern_recognition      # "I keep seeing X" -> which map explains it, is it a product signal
+  - mental_model_lookup      # a situation -> the most relevant models + how they apply
+  - life_habit               # exercise / equanimity / energy decisions
+
+diagnostic_questions:
+  - Which maps does this decision activate, and what does each say?
+  - Where do the activated maps conflict, and how does Naval resolve the tension?
+  - What is the leverage type, and is the upside asymmetric?
+  - Is your name and real downside on the line (accountability)?
+  - Does this compound in an iterated game, or reset each cycle?
+  - Is this genuine specific-knowledge fit, or status-chasing?
+
+metrics:
+  - name: decision_confidence
+    type: subjective
+    unit: 1-10
+  - name: leverage_score
+    type: subjective
+    unit: 1-10
+
+search_terms:
+  - naval
+  - leverage
+  - specific knowledge
+  - wealth
+  - accountability
+  - compounding
+  - equanimity
+  - antifragile
+  - mental model
+  - decision
+  - focus
+  - judgment
