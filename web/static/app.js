@@ -1017,9 +1017,9 @@
     if (b.review_in_days) card.appendChild(h('div', { class: 'coach-review' }, `Suggested review in ${b.review_in_days} days`));
     return card;
   }
-  function drawCoachBrief() { const el = document.getElementById('coach-brief'); if (el) el.replaceChildren(briefCard()); }
-  function drawCoachState() {
-    const el = document.getElementById('coach-state'); if (!el) return;
+  function drawCoachBrief(elArg) { const el = elArg || document.getElementById('coach-brief'); if (el) el.replaceChildren(briefCard()); }
+  function drawCoachState(elArg) {
+    const el = elArg || document.getElementById('coach-state'); if (!el) return;
     const goals = state.coachGoals, rules = state.coachRules;
     if (!goals.length && !rules.length) {
       el.replaceChildren(h('div', { class: 'coach-hint' }, 'No goals or rules tracked here yet. Generate a brief above, or track them from the CLI (psyche goal / experiment / rules).'));
@@ -1060,7 +1060,7 @@
     const briefEl = h('div', { class: 'coach-brief', id: 'coach-brief' });
     const stateEl = h('div', { class: 'coach-state', id: 'coach-state' });
     screen.append(head, genRow, briefEl, stateEl);
-    drawCoachBrief(); drawCoachState(); ensureCoachData();
+    drawCoachBrief(briefEl); drawCoachState(stateEl); ensureCoachData();
     return screen;
   }
 
@@ -1092,8 +1092,8 @@
       h('h3', {}, 'No memories yet'),
       h('p', {}, msg || 'As your connected agents work, Psyche checkpoints durable facts here automatically — every ~10 minutes and at the end of each session.'));
   }
-  function drawMemoryBody() {
-    const body = document.getElementById('memory-body'); if (!body) return;
+  function drawMemoryBody(bodyArg) {
+    const body = bodyArg || document.getElementById('memory-body'); if (!body) return;
     updateMemStats();
     if (graph) { graph.dispose(); graph = null; }
     if (state.memView === 'graph') {
@@ -1122,8 +1122,8 @@
     state.memLoaded = true;  // set only after data is in, so an early re-nav refetches
     if (currentScreen === 'memory') drawMemoryBody();
   }
-  function updateMemStats() {
-    const el = document.getElementById('mem-stats'); if (!el) return;
+  function updateMemStats(elArg) {
+    const el = elArg || document.getElementById('mem-stats'); if (!el) return;
     const s = state.memStats;
     clear(el);
     if (!s) return;
@@ -1161,7 +1161,7 @@
     const body = h('div', { class: 'mem-body', id: 'memory-body' });
     screen.append(head, toolbar, body);
 
-    updateMemStats(); drawMemoryBody();
+    updateMemStats(stats); drawMemoryBody(body);
     ensureMemoryData();
     return screen;
   }
