@@ -337,8 +337,17 @@
     const pad = h('div', { class: 'screen-pad' }, h('div', { class: 'section-wrap', id: 'setup-wrap' }));
     screen.appendChild(pad);
     drawSetup(pad.firstChild);
-    api.get('/supported-clients').then((c) => { if (Array.isArray(c) && c.length) { supportedClients = c; drawSetup(); } }).catch(() => {});
+    api.get('/supported-clients').then((c) => { if (Array.isArray(c) && c.length) { supportedClients = c; drawSetup(); } }).catch(() => {}).then(hydrateConnected);
     return screen;
+  }
+  async function hydrateConnected() {
+    // Real status from the backend (dry-run connect; no pending actions = wired).
+    const pairs = await Promise.all(supportedClients.map((k) =>
+      api.get('/connect/status?client=' + encodeURIComponent(k))
+        .then((r) => [k, !((r && r.actions) || []).length])
+        .catch(() => [k, !!state.connected[k]])));
+    pairs.forEach(([k, on]) => { state.connected[k] = on; });
+    if (currentScreen === 'setup') drawSetup();
   }
   function drawSetup(wrapArg) {
     const wrap = wrapArg || document.getElementById('setup-wrap'); if (!wrap) return;
@@ -405,8 +414,13 @@
     );
   }
   async function connectAgent(key) {
-    if (state.connected[key]) { state.connected[key] = false; drawSetup(); return; }
-    try { const r = await api.post('/connect', { client: key, dry_run: false }); state.connected[key] = (r && r.actions) || []; drawSetup(); toast(`${(CLIENT_META[key] || {}).name || key} connected · ${(r.actions || []).length} actions`); }
+    if (state.connected[key]) return; // already wired — disconnecting is a manual settings edit, not a card click
+    try {
+      const r = await api.post('/connect', { client: key, dry_run: false });
+      state.connected[key] = true; drawSetup();
+      const n = ((r && r.actions) || []).length;
+      toast(`${(CLIENT_META[key] || {}).name || key} ${n ? `connected · ${n} action${n > 1 ? 's' : ''}` : 'already connected'}`);
+    }
     catch (e) { toast(e.detail || e.message || 'Connect failed', true); }
   }
   function wiredPanel() {
