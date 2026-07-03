@@ -16,7 +16,7 @@ import build_graph as bg
 
 def phrases(text):
     """All candidate phrases the extractor would consider for one sentence."""
-    toks = bg._TOKEN_RE.findall(text)
+    toks = bg._TOKEN_RE.findall(bg._normalize_quotes(text))
     return {p for p, _first, _i in bg._phrase_windows(toks)}
 
 
@@ -58,6 +58,34 @@ class TestPhraseCandidates(unittest.TestCase):
     def test_meta_words_excluded(self):
         self.assertNotIn("chapter", phrases("chapter seven discusses virtue"))
         self.assertNotIn("purport", phrases("the purport explains the verse"))
+
+    def test_contractions_never_fragment_into_concepts(self):
+        # Books use typographic apostrophes: "didn’t" must not yield "didn"
+        # (the live "Didn · 11 links" bug), and ASCII "didn't" must not leak either.
+        for text in ["he didn’t sell the business", "he didn't sell the business",
+                     "the person’s equanimity held"]:
+            cands = phrases(text)
+            for bad in ["didn", "didn't", "person's"]:
+                self.assertNotIn(bad, cands, f"{bad!r} leaked from {text!r}")
+            self.assertFalse(any("'" in p for p in cands), f"apostrophe phrase in {cands}")
+
+    def test_academic_boilerplate_excluded(self):
+        # misdisinfo-topic garbage class: Fig / Proceedings / Manuscript / Journal
+        for w in ["fig", "proceedings", "manuscript", "journal", "conference",
+                  "arxiv", "doi", "finally"]:
+            cands = phrases(f"the {w} shows misinformation spreading")
+            self.assertNotIn(w, cands, f"{w!r} leaked as a concept")
+        self.assertNotIn("in proceedings", phrases("published in proceedings yearly"))
+
+    def test_code_sentences_skipped(self):
+        # Ingested implementation docs contain code; prose extraction must skip it
+        # ("Def Test" / "Self Client" bug class on the default topic).
+        for code in ["def test_web(self): self.client.get('/')",
+                     "resp = api.get(url)",
+                     "see https://example.com/docs for details",
+                     "the snake_case identifier survives"]:
+            self.assertEqual(list(bg._iter_sentences(code)), [], f"code leaked: {code!r}")
+        self.assertEqual(list(bg._iter_sentences("Plain prose stays.")), ["Plain prose stays."])
 
 
 class TestConstantsCoverBugReport(unittest.TestCase):

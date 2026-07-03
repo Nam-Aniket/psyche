@@ -79,9 +79,11 @@ FUNCTION_WORDS = frozenset("""
 a an the of to in on for with as at by from into about over under above below between among through during before after
 is are was were be been being am has have had do does did will would shall should can could may might must ought
 this that these those it its it's he she they them him her us we you i me my mine your yours our ours his hers their theirs
+myself yourself himself herself itself ourselves yourselves themselves oneself well
 who whom whose which what how when where why whether than then there here
 not no nor so but and or yet because however therefore thus hence moreover furthermore nevertheless otherwise indeed
 perhaps maybe also still just very really quite rather somewhat too although while since though if unless until
+finally additionally meanwhile similarly respectively whereas accordingly consequently
 all any some each every both few more most other such only own same one two three many much several another
 let out up down off away back again ever never always often sometimes now once even instead within without upon
 thee thou thy thine ye unto hath doth shalt thyself thus whilst herein therein wherein
@@ -132,16 +134,33 @@ footnote copyright edition isbn part contents foreword paragraph quote excerpt p
 com www http https etc etc. eg ie pdf epub html
 reserved permission ibid publisher publishing trademark distributed printed
 classi cation guration cient fide eva ation inform
+fig figs eq eqs proceedings manuscript journal conference vol doi arxiv preprint
+abstract keywords citation citations references bibliography acm ieee sigkdd
 """.split())
 
 _SENT_SPLIT = __import__("re").compile(r'(?<!\w\.\w.)(?<![A-Z][a-z]\.)(?<=\.|\?|!)\s')
 _TOKEN_RE = __import__("re").compile(r"[A-Za-z][A-Za-z'\-]+")
 
+# Typographic → ASCII quotes. Published books use curly apostrophes; without this
+# "didn’t" tokenizes as "didn" + "t" and the fragment becomes a "concept".
+_QUOTE_TRANS = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"'})
+
+
+def _normalize_quotes(text):
+    return text.translate(_QUOTE_TRANS)
+
+
+# The extractor is a prose pipeline; code blocks in ingested docs otherwise mint
+# concepts like "Def Test" / "Self Client". Snake_case, braces, operators and
+# URLs are near-absent from real prose, so any hit marks the sentence as code.
+# ponytail: line-level heuristic — a real code-fence parser only if this misses.
+_CODE_HINT = __import__("re").compile(r"[_{}=\\]|://|self\.|def |import ")
+
 
 def _iter_sentences(text):
     for s in _SENT_SPLIT.split(text):
         s = s.strip()
-        if s:
+        if s and not _CODE_HINT.search(s):
             yield s
 
 
@@ -154,6 +173,8 @@ def _phrase_windows(tokens_orig):
             w = toks[i:i + L]
             if any(len(t) < 3 for t in w):
                 continue
+            if any("'" in t for t in w):
+                continue  # contractions/possessives ("didn't", "person's") are never concepts
             if any(t in META_STOP for t in w):
                 continue
             if L == 1:
@@ -194,6 +215,8 @@ def build_topic_graph(db_path: str, num_clusters=None, concepts_per_cluster: int
     if not records:
         console.print("[bold red]Error:[/bold red] Database is empty. Ingest some documents first.")
         return
+    for r in records:
+        r["text"] = _normalize_quotes(r["text"])
 
     has_embeddings = records[0].get("embedding") is not None
     rng = np.random.default_rng(seed)
