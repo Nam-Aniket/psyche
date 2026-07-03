@@ -110,6 +110,13 @@
   const FALLBACK_HUES = [300, 263, 332, 210, 150, 35, 95, 180, 50, 320];
   const cssId = (x) => String(x).replace(/[^a-z0-9]/gi, '_');
   const catLabel = (c) => (c ? String(c).charAt(0).toUpperCase() + String(c).slice(1) : 'General');
+  // Humanize the generic structural relationship labels into readable link names.
+  const REL_LABELS = { 'co-occurs': 'mentioned together', 'co-occurs with': 'mentioned together', 'related theme': 'same theme', 'part of theme': 'part of theme', 'relates to': 'related to' };
+  function prettyRel(r) {
+    if (!r) return 'related to';
+    const back = r.startsWith('← '); const key = (back ? r.slice(2) : r).trim();
+    return (back ? '← ' : '') + (REL_LABELS[key.toLowerCase()] || key);
+  }
   function strokeForHue(H) { return dark() ? `oklch(0.74 0.13 ${H})` : `oklch(0.55 0.16 ${H})`; }
   function baseForHue(H) { return dark() ? `oklch(0.66 0.15 ${H})` : `oklch(0.6 0.16 ${H})`; }
   function gradStopsForHue(H, id) { const base = baseForHue(H), d = dark(); return { id, hi: `color-mix(in oklab, ${base}, white ${d ? 36 : 52}%)`, mid: base, lo: `color-mix(in oklab, ${base}, black ${d ? 30 : 24}%)` }; }
@@ -710,7 +717,7 @@
       clear(edgeLayer); clear(nodeLayer); clear(overlay); edgeEls.length = 0;
       links.forEach((l, i) => {
         const path = s('path', { fill: 'none', 'stroke-linecap': 'round' }); edgeLayer.appendChild(path); edgeEls.push({ path, l, i });
-        if (showEdgeLabels) { const lbl = h('div', { class: 'edge-label', style: 'opacity:0;display:none' }, l.rel); overlay.appendChild(lbl); edgeLabelEls[i] = lbl; }
+        if (showEdgeLabels) { const lbl = h('div', { class: 'edge-label', style: 'opacity:0;display:none' }, prettyRel(l.rel)); overlay.appendChild(lbl); edgeLabelEls[i] = lbl; }
       });
       concepts.forEach((c) => {
         const g = s('g', { style: 'cursor:pointer' });
@@ -840,7 +847,7 @@
       [1, 2, 3, 4, 5].forEach((n) => bars.appendChild(h('span', { style: `height:${(4 + n * 1.7).toFixed(1)}px;background:${n <= cn.str ? col : 'var(--border)'}` })));
       return h('button', { class: 'conn-card', onClick: () => { view.sel = cn.o.id; renderPanel(); }, onMouseenter: () => { view.hover = cn.o.id; renderTooltip(); }, onMouseleave: () => { if (view.hover === cn.o.id) { view.hover = null; renderTooltip(); } } },
         h('span', { class: 'conn-card__dot', style: dotStyle(cn.o.id) }),
-        h('span', { class: 'conn-card__body' }, h('span', { class: 'conn-card__rel' }, cn.rel), h('span', { class: 'conn-card__name' }, cn.o.name)),
+        h('span', { class: 'conn-card__body' }, h('span', { class: 'conn-card__rel' }, prettyRel(cn.rel)), h('span', { class: 'conn-card__name' }, cn.o.name)),
         h('span', { class: 'conn-card__strength' }, bars, h('span', { class: 'conn-card__strlabel' }, cn.str >= 4 ? 'strong' : cn.str >= 3 ? 'medium' : 'weak')));
     }
 
@@ -860,7 +867,7 @@
         return;
       }
       if (!drag) return;
-      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (Math.abs(dx) + Math.abs(dy) > 8) drag.moved = true;  // tolerance so a click (incl. trackpad micro-movement) still deselects; only a real orbit drag suppresses it
       const nt = drag.th + dx * 0.008; velTheta = nt - view.theta; view.theta = nt; view.phi = Math.max(-1.15, Math.min(1.15, drag.ph - dy * 0.006));
     }
     window.addEventListener('mouseup', onUp);
