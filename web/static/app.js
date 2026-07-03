@@ -506,7 +506,7 @@
     const confirming = confirmRemove === src.id;
     return h('div', { class: 'source-row', dataset: { search: (src.title + ' ' + (src.author || '')).toLowerCase() } },
       h('span', { class: 'source-row__kind' }, kindOf(src.title)),
-      h('span', { class: 'source-row__body' }, h('span', { class: 'source-row__title' }, src.title), h('span', { class: 'source-row__meta' }, (src.author || 'Unknown') + ' · local')),
+      h('span', { class: 'source-row__body' }, h('span', { class: 'source-row__title' }, src.title), h('span', { class: 'source-row__meta' }, [src.author && src.author !== 'Unknown' ? src.author : null, 'local'].filter(Boolean).join(' · '))),
       h('span', { class: 'source-row__chunks' }, `${src.chunk_count} chunks`),
       h('span', { class: 'source-row__status' }, 'indexed'),
       confirming
@@ -967,7 +967,7 @@
   }
   function thinkingMsg() { return h('div', { class: 'thinking' }, h('div', { class: 'assistant-avatar' }), h('div', { class: 'thinking__body' }, 'Searching your library', h('span', { class: 'thinking__dots' }, h('span', {}), h('span', {}), h('span', {})))); }
   function splitRuns(text) { return String(text).split(/(\[\d+\])/g).filter((p) => p !== '').map((p) => { const m = p.match(/^\[(\d+)\]$/); return m ? { isCite: true, n: +m[1] } : { isCite: false, t: p }; }); }
-  function hitToCite(hit, n) { const meta = [hit.source_author, hit.location].filter(Boolean).join(' · '); const q = (hit.text || '').trim(); return { n, title: hit.source_title || 'Source', meta, quote: q.length > 220 ? q.slice(0, 220) + '…' : q }; }
+  function hitToCite(hit, n) { const meta = [hit.source_author !== 'Unknown' ? hit.source_author : null, hit.location].filter(Boolean).join(' · '); const q = (hit.text || '').trim(); return { n, title: hit.source_title || 'Source', meta, quote: q.length > 220 ? q.slice(0, 220) + '…' : q }; }
   async function sendChat(q) {
     const text = (q !== undefined ? q : (chatInputEl ? chatInputEl.value : '')).trim();
     if (!text || state.thinking) return;

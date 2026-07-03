@@ -30,7 +30,7 @@ class SearchResult(BaseModel):
     text: str
     location: str | None
     source_title: str
-    source_author: str
+    source_author: str | None  # null when a source has no known author
     score: float
 
 
