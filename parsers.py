@@ -593,6 +593,70 @@ def extract_org_text(file_path: str) -> list[dict]:
         blocks = [{"text": content, "location": "Full Document"}]
     return blocks
 
+def _clean_meta_field(value) -> str | None:
+    """A metadata field usable as a display string, or None. Rejects the junk
+    real-world PDF producers leave behind (filenames, template markers)."""
+    import re
+    if not value or not isinstance(value, str):
+        return None
+    v = value.strip()
+    # Trailing pirate-site / drive suffixes: "Title - PDFDrive.com"
+    v = re.sub(r"\s*[-–—(]\s*(www\.)?[A-Za-z0-9-]+\.(com|org|net|pub|info)\)?\s*$", "", v).strip()
+    if not v or len(v) < 3 or len(v) > 200 or v.lower() in ("untitled", "unknown", "none", "me"):
+        return None
+    if "_" in v or "*" in v:
+        return None  # template/producer strings ("**Final_The War of Art_6x9**")
+    if " " not in v and re.search(r"\.[A-Za-z]{2,5}$", v):
+        return None  # a bare filename ("runfm.dvi", "book.indd")
+    return v
+
+
+def extract_metadata(file_path: str) -> dict:
+    """Best-effort {'title','author'} from embedded document metadata.
+    Missing/junk fields are omitted; unsupported types return {}."""
+    ext = os.path.splitext(file_path)[1].lower()
+    meta = {}
+    try:
+        if ext == ".pdf":
+            title = author = None
+            if fitz is not None:
+                try:
+                    doc = fitz.open(file_path)
+                    m = doc.metadata or {}
+                    title, author = m.get("title"), m.get("author")
+                except Exception:
+                    pass
+            if title is None and author is None:
+                info = PdfReader(file_path).metadata
+                if info:
+                    title, author = info.title, info.author
+            meta = {"title": _clean_meta_field(title), "author": _clean_meta_field(author)}
+        elif ext == ".epub":
+            with zipfile.ZipFile(file_path, "r") as epub:
+                opf_path = None
+                if "META-INF/container.xml" in epub.namelist():
+                    root = ET.fromstring(epub.read("META-INF/container.xml"))
+                    for elem in root.iter():
+                        if elem.tag.split("}")[-1] == "rootfile":
+                            opf_path = elem.attrib.get("full-path")
+                            break
+                if not opf_path:
+                    opf_path = next((f for f in epub.namelist() if f.endswith(".opf")), None)
+                if opf_path and opf_path in epub.namelist():
+                    opf_root = ET.fromstring(epub.read(opf_path))
+                    title = author = None
+                    for elem in opf_root.iter():
+                        tag = elem.tag.split("}")[-1]
+                        if tag == "title" and title is None:
+                            title = elem.text
+                        elif tag == "creator" and author is None:
+                            author = elem.text
+                    meta = {"title": _clean_meta_field(title), "author": _clean_meta_field(author)}
+    except Exception:
+        return {}
+    return {k: v for k, v in meta.items() if v}
+
+
 def extract_text(file_path: str) -> list[dict]:
     """Extracts text chunks and their locations from a file based on its extension."""
     if not os.path.exists(file_path):

@@ -32,10 +32,28 @@ def calculate_sha256(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 def clean_title_from_filename(filename: str) -> str:
-    """Derives a clean title from a filename."""
+    """Derives a clean title from a filename ("1667121038Craft.pdf" → "Craft",
+    hash names → "Untitled (2e5acdc5…)")."""
+    import re
     name, _ = os.path.splitext(os.path.basename(filename))
+    # Pure hex/hash names carry no information.
+    if len(name) >= 16 and re.fullmatch(r"[0-9a-fA-F]+", name):
+        return f"Untitled ({name[:8].lower()}…)"
     cleaned = name.replace("_", " ").replace("-", " ")
-    return cleaned.strip().title()
+    cleaned = re.sub(r"^\d{6,}\s*", "", cleaned)            # leading timestamp/id runs
+    cleaned = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", cleaned)  # split camelCase
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    return cleaned.title() if cleaned else name
+
+
+def resolve_source_meta(path: str, title_override: str = None, author_override: str = None) -> tuple[str, str | None]:
+    """(title, author) for a source: explicit override > embedded document
+    metadata > cleaned filename; author None (not 'Unknown') when absent."""
+    from parsers import extract_metadata
+    meta = extract_metadata(path)
+    title = title_override or meta.get("title") or clean_title_from_filename(path)
+    author = author_override or meta.get("author") or None
+    return title, author
 
 def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 300) -> list[str]:
     """Splits text into chunks of character length chunk_size with overlap."""
@@ -152,10 +170,10 @@ def main():
                     continue
 
                 
-            title = args.title if (len(files_to_ingest) == 1 and args.title) else clean_title_from_filename(path)
-            author = args.author or "Unknown"
-            
-            console.print(f"\n[bold green]Ingesting:[/bold green] [italic]'{title}'[/italic] by [bold]{author}[/bold]")
+            title_override = args.title if (len(files_to_ingest) == 1 and args.title) else None
+            title, author = resolve_source_meta(path, title_override, args.author)
+
+            console.print(f"\n[bold green]Ingesting:[/bold green] [italic]'{title}'[/italic] by [bold]{author or 'Unknown'}[/bold]")
             console.print(f"[dim]File: {os.path.relpath(path)}[/dim]")
             
             # Extract Text

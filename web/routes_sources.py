@@ -138,7 +138,7 @@ def ingest_file(body: IngestRequest, request: Request):
     a process restart (or re-hit to the state loader) is required for
     newly ingested content to appear in search results.
     """
-    from ingest import calculate_sha256, chunk_text, clean_title_from_filename
+    from ingest import calculate_sha256, chunk_text, clean_title_from_filename, resolve_source_meta
     from parsers import extract_text
     from db import (
         get_connection as _get_conn,
@@ -197,8 +197,7 @@ def ingest_file(body: IngestRequest, request: Request):
                 raise HTTPException(status_code=502, detail=f"Embedding generation failed: {exc}")
 
         # ── 5. Persist ────────────────────────────────────────────────────────
-        title = body.title or clean_title_from_filename(path)
-        author = body.author or "Unknown"
+        title, author = resolve_source_meta(path, body.title, body.author)
 
         source_id = add_source(conn, title, author, path, checksum)
         for idx, chunk_data in enumerate(chunks):
@@ -235,7 +234,7 @@ async def ingest_upload(
     multipart form fields (a plain default would make them query params).
     """
     import tempfile as _tempfile
-    from ingest import calculate_sha256, chunk_text, clean_title_from_filename
+    from ingest import calculate_sha256, chunk_text, clean_title_from_filename, resolve_source_meta
     from parsers import extract_text
     from db import (
         get_connection as _get_conn,
@@ -296,8 +295,12 @@ async def ingest_upload(
                 except Exception as exc:
                     raise HTTPException(status_code=502, detail=f"Embedding generation failed: {exc}")
 
-            resolved_title = title or clean_title_from_filename(original_filename)
-            resolved_author = author or "Unknown"
+            # Metadata lives in the temp file; the pretty-filename fallback must
+            # come from the original upload name, not the tmp path.
+            from parsers import extract_metadata
+            meta = extract_metadata(tmp_path)
+            resolved_title = title or meta.get("title") or clean_title_from_filename(original_filename)
+            resolved_author = author or meta.get("author") or None
 
             source_id = add_source(conn, resolved_title, resolved_author, original_filename, checksum)
             for idx, chunk_data in enumerate(chunks):
