@@ -229,7 +229,9 @@
     return wrap;
   }
   function brand(small) {
-    return h('button', { class: 'brand', onClick: () => go('landing') }, h('div', { class: 'brand__mark' }), h('span', { class: 'brand__name', style: small ? 'font-size:20px' : '' }, 'Psyche'));
+    // In-app (small) the logo is a home button within the app; only the landing
+    // header logo exits to the marketing page.
+    return h('button', { class: 'brand', onClick: () => (small ? go('app', 'graph') : go('landing')) }, h('div', { class: 'brand__mark' }), h('span', { class: 'brand__name', style: small ? 'font-size:20px' : '' }, 'Psyche'));
   }
   function themeBtn() { const b = h('button', { class: 'btn btn--icon', title: 'Toggle theme', 'aria-label': 'Toggle light or dark theme', onClick: () => setTheme(dark() ? 'light' : 'dark') }); b.appendChild(themeIcon()); return b; }
 
@@ -921,23 +923,28 @@
   // ── Chat ────────────────────────────────────────────────────────────────────
   let chatStreamEl = null, chatInputEl = null;
   const CHAT_SUGGESTIONS = ['What is in my library?', 'Summarize the key ideas.', 'What connects these concepts?'];
+  const chatSynthesizes = () => activePathId() !== 'agent';  // a chat model is wired → written answers, not just passages
   function buildChat() {
     const screen = h('div', { class: 'screen screen--flush' });
-    screen.appendChild(h('div', { class: 'chat-head' }, h('div', { class: 'chat-narrow' }, h('div', { class: 'section__kicker' }, 'Ask'), h('h1', {}, 'Cited answers from your documents'))));
+    screen.appendChild(h('div', { class: 'chat-head' }, h('div', { class: 'chat-narrow' }, h('div', { class: 'section__kicker' }, 'Ask'),
+      h('h1', {}, chatSynthesizes() ? 'Cited answers from your documents' : 'Cited passages from your library'))));
     chatStreamEl = h('div', { class: 'chat-stream' });
     screen.appendChild(h('div', { class: 'chat-scroll', id: 'chat-scroll' }, chatStreamEl));
     chatInputEl = h('input', { placeholder: 'Ask anything about your documents…', 'aria-label': 'Ask a question about your documents', onKeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
     screen.appendChild(h('div', { class: 'chat-foot' }, h('div', { class: 'chat-narrow' },
       h('div', { class: 'chat-input-bar' }, chatInputEl, h('button', { class: 'chat-send', 'aria-label': 'Send message', onClick: () => sendChat() }, icon(ICONS.arrow, 19, 2.1))),
-      h('div', { class: 'chat-disclaimer' }, 'Answers are grounded only in your indexed sources · nothing leaves this machine'))));
+      h('div', { class: 'chat-disclaimer' }, (chatSynthesizes() ? 'Answers' : 'Results') + ' are grounded only in your indexed sources · nothing leaves this machine'))));
     drawChat();
     return screen;
   }
   function chatEmptyState() {
+    const synth = chatSynthesizes();
     return h('div', { class: 'chat-empty' },
       h('div', { class: 'chat-empty__mark' }),
-      h('h2', {}, 'Ask your library anything'),
-      h('p', {}, 'Every answer is pulled straight from your indexed documents, with citations. Nothing leaves your machine.'),
+      h('h2', {}, synth ? 'Ask your library anything' : 'Search your library'),
+      h('p', {}, synth
+        ? 'Every answer is pulled straight from your indexed documents, with citations. Nothing leaves your machine.'
+        : 'Psyche finds the most relevant passages from your indexed documents, with citations. Wire a chat model in Setup for written answers — nothing leaves your machine either way.'),
       h('div', { class: 'suggest-row' }, CHAT_SUGGESTIONS.map((t) => h('button', { class: 'btn btn--chip', onClick: () => sendChat(t) }, t))));
   }
   function drawChat() {

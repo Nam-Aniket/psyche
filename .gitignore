@@ -34,6 +34,9 @@ scratch/
 *.mov
 *.gif
 
+# Design mockups / tool exports (not part of the app)
+*.zip
+
 # Growth and Marketing plans
 github_growth_analysis.md
 implementation_plan.md

@@ -438,8 +438,13 @@ body {
   .appbar__right .stat-chip { display: none; }
 }
 @media (max-width: 720px) {
-  .appbar { gap: 8px; padding: 0 12px; overflow-x: auto; }
+  /* Two rows: brand + topic/theme controls stay pinned on row 1; only the tab
+     strip scrolls on row 2, so nothing runs off-screen. */
+  .appbar { flex-wrap: wrap; height: auto; gap: 8px 10px; padding: 8px 12px; }
   .appbar__brand .brand__name { display: none; }
+  .appbar__right { order: 2; }
+  .tabs { order: 3; flex-basis: 100%; overflow-x: auto; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
   .tab { padding: 0 11px; }
   .landing__header { flex-wrap: wrap; gap: 10px; }
   .landing__header .tag-pill { display: none; }
