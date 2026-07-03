@@ -69,8 +69,9 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     # --- router registrations (alphabetical; one include_router line per router) ---
-    from web import routes_graph, routes_memory, routes_search, routes_sources, routes_system
+    from web import routes_coach, routes_graph, routes_memory, routes_search, routes_sources, routes_system
 
+    app.include_router(routes_coach.router)
     app.include_router(routes_graph.router)
     app.include_router(routes_memory.router)
     app.include_router(routes_search.router)

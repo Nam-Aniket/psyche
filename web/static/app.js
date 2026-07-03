@@ -40,7 +40,7 @@
     trash: ['M4 7l1.5 12.5A1.5 1.5 0 0 0 7 21h10a1.5 1.5 0 0 0 1.5-1.5L20 7', 'M2 7h20M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2'],
   };
   function navIconFor(key) {
-    const m = { setup: ICONS.gear, upload: ICONS.upload, graph: 'M6 6a2 2 0 1 0 0 .01M18 9a2 2 0 1 0 0 .01M9 18a2 2 0 1 0 0 .01M8 7l8 1.4M7.6 16.2l1.8-7.6', chat: ICONS.chat, memory: 'M12 3a4 4 0 0 0-4 4 3 3 0 0 0-1 5.8V17a3 3 0 0 0 5 2.2A3 3 0 0 0 17 17v-4.2A3 3 0 0 0 16 7a4 4 0 0 0-4-4ZM12 3v16' };
+    const m = { setup: ICONS.gear, upload: ICONS.upload, graph: 'M6 6a2 2 0 1 0 0 .01M18 9a2 2 0 1 0 0 .01M9 18a2 2 0 1 0 0 .01M8 7l8 1.4M7.6 16.2l1.8-7.6', chat: ICONS.chat, coach: 'M12 2l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 15.3 6.8 18l1-5.8L3.6 8.1l5.8-.8z', memory: 'M12 3a4 4 0 0 0-4 4 3 3 0 0 0-1 5.8V17a3 3 0 0 0 5 2.2A3 3 0 0 0 17 17v-4.2A3 3 0 0 0 16 7a4 4 0 0 0-4-4ZM12 3v16' };
     return icon(m[key], 16);
   }
   function themeIcon() { const e = icon(ICONS.sun, 17); e.insertBefore(s('circle', { cx: 12, cy: 12, r: 4 }), e.firstChild); return e; }
@@ -74,16 +74,18 @@
     chat: [], thinking: false, ingesting: [], loadedApp: false,
     memories: [], memStats: null, memNodes: [], memEdges: [], memQuery: '', memView: 'list',
     topic: '', topics: [],
+    coachGoals: [], coachRules: [], coachBrief: null, coachLoaded: false, coachThinking: false,
   };
   // Scope a request path/body to the active topic. Empty topic = default library.
   const withTopic = (path) => state.topic ? path + (path.includes('?') ? '&' : '?') + 'topic=' + encodeURIComponent(state.topic) : path;
   const topicBody = (body) => state.topic ? Object.assign({ topic: state.topic }, body) : body;
-  const SCREENS = ['setup', 'upload', 'graph', 'chat', 'memory'];
+  const SCREENS = ['setup', 'upload', 'graph', 'chat', 'coach', 'memory'];
   const SCREEN_META = {
     setup: { tab: 'Setup', kicker: 'Setup', title: 'Connect your agents' },
     upload: { tab: 'Upload', kicker: 'Sources', title: 'Your library' },
     graph: { tab: 'Graph', kicker: 'Knowledge graph', title: 'Concepts & connections' },
     chat: { tab: 'Chat', kicker: 'Ask', title: 'Ask your library' },
+    coach: { tab: 'Coach', kicker: 'Coach', title: 'Goals & guidance' },
     memory: { tab: 'Memory', kicker: 'Memory', title: 'What Psyche remembers' },
   };
   let currentScreen = null;
@@ -275,6 +277,7 @@
     if (name === state.topic) return;
     state.topic = name;
     state.memLoaded = false; state.memQuery = ''; state.memSearch = []; state.memView = 'list';
+    state.coachLoaded = false; state.coachBrief = null;
     await loadAppData();
     renderTopicOptions();
     updateStatChip();
@@ -288,6 +291,7 @@
     if (key === 'setup') return buildSetup();
     if (key === 'upload') return buildUpload();
     if (key === 'graph') return buildGraph();
+    if (key === 'coach') return buildCoach();
     if (key === 'memory') return buildMemory();
     return buildChat();
   }
@@ -967,6 +971,97 @@
         } catch (e2) { state.chat.push({ role: 'assistant', text: 'Search failed: ' + (e2.detail || e2.message) }); }
       } else state.chat.push({ role: 'assistant', text: 'Something went wrong: ' + (e.detail || e.message) });
     } finally { state.thinking = false; drawChat(); }
+  }
+
+  // ── Coach ───────────────────────────────────────────────────────────────────
+  async function ensureCoachData(force) {
+    if (state.coachLoaded && !force) return;
+    try {
+      const s = await api.get(withTopic('/coach/state'));
+      state.coachGoals = (s && s.goals) || []; state.coachRules = (s && s.rules) || [];
+    } catch (_) { state.coachGoals = []; state.coachRules = []; }
+    state.coachLoaded = true;
+    if (currentScreen === 'coach') drawCoachState();
+  }
+  async function runBrief(text) {
+    const q = (text || '').trim(); if (!q || state.coachThinking) return;
+    state.coachThinking = true; drawCoachBrief();
+    try { state.coachBrief = await api.post('/coach/brief', topicBody({ goal_text: q })); }
+    catch (e) { state.coachBrief = { error: e.detail || e.message }; }
+    finally { state.coachThinking = false; drawCoachBrief(); }
+  }
+  function actionText(a) { return typeof a === 'string' ? a : (a.action || a.title || a.step || a.text || JSON.stringify(a)); }
+  function briefCard() {
+    if (state.coachThinking) return h('div', { class: 'coach-thinking' }, h('span', { class: 'thinking__dots' }, h('span', {}), h('span', {}), h('span', {})), 'Thinking through your library…');
+    const b = state.coachBrief;
+    if (!b) return h('div', { class: 'coach-hint' }, 'Ask for guidance on a goal — Psyche grounds the brief in your ingested library and your tracked rules.');
+    if (b.error) return h('div', { class: 'coach-hint is-error' }, b.error);
+    const card = h('div', { class: 'coach-brief-card' });
+    if (b.domain) card.appendChild(memChip(b.domain));
+    if (b.diagnosis) card.appendChild(h('p', { class: 'coach-diagnosis' }, b.diagnosis));
+    const actions = b.actions || [];
+    if (actions.length) {
+      const ol = h('ol', { class: 'coach-actions' });
+      actions.forEach((a, i) => ol.appendChild(h('li', { class: i === b.first_action_index ? 'is-first' : '' }, actionText(a))));
+      card.append(h('div', { class: 'panel-label' }, 'Next actions'), ol);
+    }
+    const ps = b.relevant_principles || [];
+    if (ps.length) {
+      card.appendChild(h('div', { class: 'panel-label' }, actions.length ? 'Grounded in' : 'Cited principles · no chat model, retrieval only'));
+      const wrap = h('div', { class: 'coach-principles' });
+      ps.forEach((p) => wrap.appendChild(h('div', { class: 'coach-principle' },
+        h('div', { class: 'coach-principle__text' }, p.principle || ''),
+        h('div', { class: 'coach-principle__src' }, p.source || ''))));
+      card.appendChild(wrap);
+    }
+    if (b.review_in_days) card.appendChild(h('div', { class: 'coach-review' }, `Suggested review in ${b.review_in_days} days`));
+    return card;
+  }
+  function drawCoachBrief() { const el = document.getElementById('coach-brief'); if (el) el.replaceChildren(briefCard()); }
+  function drawCoachState() {
+    const el = document.getElementById('coach-state'); if (!el) return;
+    const goals = state.coachGoals, rules = state.coachRules;
+    if (!goals.length && !rules.length) {
+      el.replaceChildren(h('div', { class: 'coach-hint' }, 'No goals or rules tracked here yet. Generate a brief above, or track them from the CLI (psyche goal / experiment / rules).'));
+      return;
+    }
+    const out = h('div', {});
+    if (goals.length) {
+      out.appendChild(h('div', { class: 'panel-label' }, `${goals.length} active goal${goals.length > 1 ? 's' : ''}`));
+      const list = h('div', { class: 'mem-list' });
+      goals.forEach((g) => {
+        const card = h('div', { class: 'mem-card' },
+          h('div', { class: 'coach-goal__title' }, g.title || ''),
+          g.description ? h('div', { class: 'coach-goal__desc' }, g.description) : null,
+          h('div', { class: 'mem-card__meta' }, memChip(g.domain), h('span', { class: 'mem-card__proj' }, g.stage || '')));
+        (g.experiments || []).forEach((x) => card.appendChild(h('div', { class: 'coach-exp' }, icon(ICONS.flask || 'M9 3h6M10 3v5l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3', 13), x.title || '')));
+        list.appendChild(card);
+      });
+      out.appendChild(list);
+    }
+    if (rules.length) {
+      out.appendChild(h('div', { class: 'panel-label', style: 'margin-top:22px' }, `${rules.length} personal rule${rules.length > 1 ? 's' : ''}`));
+      const rl = h('div', { class: 'mem-list' });
+      rules.forEach((r) => rl.appendChild(h('div', { class: 'mem-card' },
+        h('div', { class: 'mem-card__fact' }, r.rule_text || ''),
+        h('div', { class: 'mem-card__meta' }, h('span', { class: 'mem-chip', style: '--chip:var(--primary)' }, r.confidence || 'tentative'), r.source ? h('span', { class: 'mem-card__proj' }, r.source) : null))));
+      out.appendChild(rl);
+    }
+    el.replaceChildren(out);
+  }
+  function buildCoach() {
+    const screen = h('div', { class: 'screen' });
+    const head = screenHead('coach', null);
+    const input = h('input', { class: 'mem-search__input', placeholder: 'What do you want guidance on? e.g. "get my first 10 customers"',
+      onKeydown: (e) => { if (e.key === 'Enter') runBrief(e.currentTarget.value); } });
+    const genRow = h('div', { class: 'coach-gen' },
+      h('div', { class: 'mem-search', style: 'flex:1' }, icon(ICONS.search || 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3', 16), input),
+      h('button', { class: 'btn btn--primary', style: 'white-space:nowrap', onClick: () => runBrief(input.value) }, 'Generate brief'));
+    const briefEl = h('div', { class: 'coach-brief', id: 'coach-brief' });
+    const stateEl = h('div', { class: 'coach-state', id: 'coach-state' });
+    screen.append(head, genRow, briefEl, stateEl);
+    drawCoachBrief(); drawCoachState(); ensureCoachData();
+    return screen;
   }
 
   // ── Memory ──────────────────────────────────────────────────────────────────
