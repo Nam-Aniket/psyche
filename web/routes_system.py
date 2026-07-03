@@ -184,7 +184,7 @@ def get_topics():
     topic_<name>.db in the Psyche data dir, with a cheap source count each.
     Powers the global topic switcher."""
     import sqlite3
-    from db import resolve_db_path
+    from db import resolve_db_path, _apply_connection_pragmas
 
     default_db = resolve_db_path("knowledge.db")
     data_dir = os.path.dirname(default_db)
@@ -192,6 +192,7 @@ def get_topics():
     def _count_sources(path):
         try:
             conn = sqlite3.connect(path)
+            _apply_connection_pragmas(conn)
             try:
                 return conn.execute("SELECT COUNT(*) FROM sources").fetchone()[0]
             finally:

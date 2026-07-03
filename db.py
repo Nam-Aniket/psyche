@@ -141,6 +141,16 @@ def index_path_for(db_path):
     """Derives the usearch index path for a database file."""
     return os.path.splitext(db_path)[0] + ".usearch"
 
+def _apply_connection_pragmas(conn):
+    """Concurrency-safety pragmas applied to EVERY SQLite connection so multiple
+    clients (e.g. Claude Desktop and Claude Code each running their own Psyche
+    stdio server, plus the web app, all against the same DB) don't trip
+    'database is locked': WAL lets readers and the single writer coexist, and
+    busy_timeout makes a contending writer wait instead of erroring instantly."""
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA synchronous = NORMAL")
+
 def init_db(db_path: str):
     """Initializes the database schema if it doesn't already exist."""
     resolved_path = resolve_db_path(db_path)
@@ -148,9 +158,9 @@ def init_db(db_path: str):
     db_dir = os.path.dirname(resolved_path)
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
-        
+
     conn = sqlite3.connect(resolved_path)
-    conn.execute("PRAGMA journal_mode = WAL")
+    _apply_connection_pragmas(conn)
     cursor = conn.cursor()
     
     # Create sources table
@@ -399,9 +409,7 @@ def get_connection(db_path: str) -> sqlite3.Connection:
     """Returns a connection to the SQLite database with sqlite-vec loaded if available."""
     conn = sqlite3.connect(db_path)
     conn.execute("PRAGMA foreign_keys = ON")
-    conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA busy_timeout = 5000")
-    conn.execute("PRAGMA synchronous = NORMAL")
+    _apply_connection_pragmas(conn)
 
     # Try to load sqlite-vec dynamically
     try:
@@ -1062,6 +1070,7 @@ def sync_memories_hook(db_path: str):
             
         # Check if there's any file that hasn't been ingested yet by verifying checksums in the database
         conn = sqlite3.connect(db_path)
+        _apply_connection_pragmas(conn)
         try:
             cursor = conn.cursor()
             import hashlib
