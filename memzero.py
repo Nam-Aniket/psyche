@@ -35,7 +35,7 @@ Rules:
 - Only durable information useful in FUTURE sessions: user preferences, decisions made and why, lessons learned, stable project facts.
 - Exclude anything derivable from the code or repository itself, one-off task details, transient state, secrets, API keys, and file contents.
 - Each fact must stand alone without the conversation.
-- At most 10 facts. Return [] if nothing durable was said."""
+- At most 15 facts. Return [] if nothing durable was said."""
 
 
 def _now() -> str:
@@ -269,30 +269,51 @@ def add_memory(fact: str, category: str = None, entities: list[str] = None,
 
 
 def extract_and_store(transcript_text: str, agent_id: str = None, run_id: str = None,
-                      project: str = None, db_path: str = None, llm=None) -> list[dict]:
+                      project: str = None, db_path: str = None, llm=None,
+                      debug_log=None) -> list[dict]:
     """LLM-extracts atomic facts from a transcript and stores them.
 
     Returns the list of stored facts. Returns [] without storing when no chat
     model is configured (CHAT_MODEL=none) — verbatim transcript storage would
-    only add noise.
+    only add noise. debug_log, when given, receives one line explaining any
+    zero-store outcome (llm failure vs unparseable output vs all duplicates),
+    so callers' logs can distinguish failure from a genuine no-op.
     """
+    def _note(reason):
+        if debug_log:
+            try:
+                debug_log(reason)
+            except Exception:
+                pass
+
     llm = _get_llm(llm)
     if getattr(llm, "chat_model", "none") == "none":
+        _note("skipped: no chat model configured")
         return []
     transcript_text = (transcript_text or "").strip()
     if len(transcript_text) < 200:
+        _note("skipped: transcript under 200 chars")
         return []
     try:
         raw = llm.generate_completion(EXTRACTION_SYSTEM, transcript_text[-12000:])
-    except Exception:
+    except Exception as e:
+        _note(f"completion failed: {e}")
         return []
     raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip())
     try:
         candidates = json.loads(raw)
     except (json.JSONDecodeError, TypeError):
-        return []
+        # Salvage a JSON array embedded in surrounding chatter
+        # (e.g. "[...]\n```\nExplanation…" from a chatty model).
+        try:
+            start = raw.index("[")
+            candidates, _ = json.JSONDecoder().raw_decode(raw[start:])
+        except (ValueError, json.JSONDecodeError):
+            _note(f"unparseable LLM output: {raw[:160]!r}")
+            return []
     stored = []
-    for item in candidates[:10] if isinstance(candidates, list) else []:
+    duplicates = 0
+    for item in candidates[:15] if isinstance(candidates, list) else []:
         if not isinstance(item, dict) or not item.get("fact"):
             continue
         result = add_memory(
@@ -307,6 +328,11 @@ def extract_and_store(transcript_text: str, agent_id: str = None, run_id: str = 
         )
         if result["duplicate_of"] is None:
             stored.append(result)
+        else:
+            duplicates += 1
+    if not stored:
+        n = len(candidates) if isinstance(candidates, list) else 0
+        _note(f"stored 0: {n} candidates, {duplicates} duplicates")
     return stored
 
 

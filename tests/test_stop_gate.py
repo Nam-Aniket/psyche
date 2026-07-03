@@ -190,26 +190,60 @@ class TestStopHookIntegration(unittest.TestCase):
         os.environ.pop("PSYCHE_STOP_WORKER", None)
         shutil.rmtree(self._tmp, ignore_errors=True)
 
-    def test_cold_turn_spawns_and_writes_watermark(self):
+    def test_cold_turn_spawns_marks_inflight_not_watermark(self):
         self.ps.main()
         self.assertEqual(len(self.spawns), 1)
-        self.assertIn("PSYCHE_STOP_WORKER", self.spawns[0][1]["env"])
+        env = self.spawns[0][1]["env"]
+        self.assertIn("PSYCHE_STOP_WORKER", env)
         st = hc.read_extract_state("sid")
-        self.assertEqual(st["last_turn_count"], 5)
-        self.assertIsNotNone(st["last_ts"])
+        self.assertIn("inflight_ts", st)          # in-flight marked
+        self.assertNotIn("last_ts", st)           # watermark NOT advanced at spawn
+        # the worker carries the target watermark to commit on success
+        with open(env["PSYCHE_STOP_WORKER"]) as f:
+            wp = json.load(f)
+        self.assertEqual(wp["_watermark"]["last_turn_count"], 5)
 
-    def test_next_turn_suppressed_after_watermark(self):
-        self.ps.main()                 # passes
-        self.ps.main()                 # no growth / no time -> skip
+    def test_next_turn_suppressed_while_inflight(self):
+        self.ps.main()                 # spawns, marks in-flight
+        self.ps.main()                 # in-flight -> suppressed (no double-spawn)
         self.assertEqual(len(self.spawns), 1)
 
-    def test_timer_path_refires(self):
-        self.ps.main()
-        st = hc.read_extract_state("sid")
-        st["last_ts"] -= 999           # force >10 min elapsed
-        hc.write_extract_state("sid", st)
-        self.ps.main()
+    def test_timer_path_refires_after_worker_commits(self):
+        self.ps.main()                 # spawn 1, in-flight set
+        # simulate the worker committing the watermark long ago (clears in-flight)
+        hc.write_extract_state("sid", {"last_ts": 1.0, "last_turn_count": 5, "last_len": 10})
+        self.ps.main()                 # timer path (>10 min) -> spawn 2
         self.assertEqual(len(self.spawns), 2)
+
+    def test_worker_success_commits_watermark(self):
+        pf = os.path.join(self._tmp, "p.json")
+        with open(pf, "w") as f:
+            json.dump({**self.payload,
+                       "_watermark": {"last_ts": 5.0, "last_turn_count": 9, "last_len": 100}}, f)
+        self.ps.extract_facts = lambda p, *, source: ["a fact"]    # success
+        os.environ["PSYCHE_STOP_WORKER"] = pf
+        self.ps.main()
+        st = hc.read_extract_state("sid")
+        self.assertEqual(st.get("last_turn_count"), 9)             # committed
+        self.assertNotIn("inflight_ts", st)
+
+    def test_worker_failure_keeps_old_watermark_and_clears_lock(self):
+        # As if the parent just spawned: old watermark + in-flight lock set.
+        hc.write_extract_state("sid", {"last_ts": 5.0, "last_turn_count": 9,
+                                       "last_len": 100, "inflight_ts": 999.0})
+        pf = os.path.join(self._tmp, "p.json")
+        with open(pf, "w") as f:
+            json.dump({**self.payload,
+                       "_watermark": {"last_ts": 50.0, "last_turn_count": 20, "last_len": 999}}, f)
+
+        def boom(p, *, source):
+            raise RuntimeError("claude CLI extraction failed")
+        self.ps.extract_facts = boom
+        os.environ["PSYCHE_STOP_WORKER"] = pf
+        self.ps.main()
+        st = hc.read_extract_state("sid")
+        self.assertEqual(st.get("last_turn_count"), 9)   # OLD watermark preserved (not 20)
+        self.assertNotIn("inflight_ts", st)              # lock cleared -> retried next turn
 
     def test_stop_hook_active_blocks(self):
         self.payload["stop_hook_active"] = True
