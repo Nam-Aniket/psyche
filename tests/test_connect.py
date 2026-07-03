@@ -125,6 +125,29 @@ class TestConnect(unittest.TestCase):
         psyche_groups = [g for g in stop_groups if connect._is_psyche_group(g)]
         self.assertEqual(len(psyche_groups), 1, "Psyche Stop hook must not duplicate")
 
+    def test_hooks_current_at_any_position_reports_no_action(self):
+        # A correct psyche group sitting BEFORE foreign groups must count as
+        # current: no reorder, no phantom "installed hooks" action on dry-run.
+        connect = self._import_connect()
+        connect.connect("claude-code")
+
+        settings_path = os.path.expanduser("~/.claude/settings.json")
+        with open(settings_path, "r") as f:
+            data = json.load(f)
+        # Foreign group AFTER psyche's (mirrors a real user settings.json).
+        foreign = {"hooks": [{"type": "command", "command": "/usr/bin/other-tool"}]}
+        data["hooks"]["UserPromptSubmit"].append(foreign)
+        with open(settings_path, "w") as f:
+            json.dump(data, f)
+        before = open(settings_path).read()
+
+        actions = connect.connect("claude-code", dry_run=True)
+        hook_actions = [a for a in actions if "hooks" in a]
+        self.assertEqual(hook_actions, [], f"dry-run must report current, got {hook_actions}")
+
+        connect.connect("claude-code")  # real run must not rewrite/reorder either
+        self.assertEqual(open(settings_path).read(), before, "file must be untouched")
+
     def test_dry_run_writes_no_hooks(self):
         connect = self._import_connect()
         connect.connect("claude-code", dry_run=True)

@@ -178,9 +178,21 @@ def _merge_agent_hooks(path: str, hook_map: dict, dry_run: bool = False) -> str 
     before = json.dumps(hooks, sort_keys=True)
 
     for event, script in hook_map.items():
-        # Drop our previous entries for this event; keep everyone else's.
-        groups = [g for g in hooks.get(event, []) if not _is_psyche_group(g)]
-        groups.append({"hooks": [{"type": "command", "command": _hook_command(script)}]})
+        # Replace our previous entry for this event IN PLACE (a correct psyche
+        # group at any position counts as current — moving it would make the
+        # order-sensitive change detection below report a phantom install).
+        desired = {"hooks": [{"type": "command", "command": _hook_command(script)}]}
+        groups, replaced = [], False
+        for g in hooks.get(event, []):
+            if _is_psyche_group(g):
+                if not replaced:
+                    groups.append(desired)
+                    replaced = True
+                # extra psyche groups for the same event are dropped
+            else:
+                groups.append(g)
+        if not replaced:
+            groups.append(desired)
         hooks[event] = groups
 
     if json.dumps(hooks, sort_keys=True) == before:
