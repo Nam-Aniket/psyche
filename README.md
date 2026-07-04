@@ -1,7 +1,8 @@
 # Psyche 🧠
 
 <div align="center">
-  <p><strong>Give any AI assistant searchable, cited access to your private notes and documents.</strong></p>
+  <p><strong>A private second brain your whole AI toolchain can remember.</strong></p>
+  <p>Turn your books, notes and documents into a searchable, cited knowledge base — and give Claude Code, Codex, Gemini and Antigravity <em>one shared memory</em>. 100% local. $0 to run.</p>
 
   [![Version](https://img.shields.io/badge/version-0.7.0-blueviolet.svg?style=for-the-badge)](https://github.com/Nam-Aniket/psyche)
   [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg?style=for-the-badge)](https://github.com/Nam-Aniket/psyche)
@@ -12,164 +13,162 @@
 
 ---
 
-## 🆕 What's New in 0.6
+## The problem, in one sentence
 
-- **Actionable Guidance Plans**: Turn goals into concrete tasks using `psyche guide "<goal>" --apply`.
-- **Check-in Loop**: Follow through on your plans and log reviews using `psyche checkin <goal_id> -u "<update text>"`.
-- **One-Command Onboarding**: Wire Psyche into your coding agents instantly with `psyche connect <client>`.
-- **Memory CLI**: Manage your atomic facts from the terminal with the `psyche mem` subcommands (`list`, `search`, `add`, `prune`, `stats`).
-- **Project-Scoped Memory**: Facts are now scoped to your project directories for higher relevance.
-- **Token Ledger**: Track tokens saved from automatic memory injection in `psyche mem stats`.
+**Your AI assistant has amnesia — and you pay for it, in tokens, every single session.**
 
----
+Every new session, your coding agent re-reads the same files to rediscover your conventions, re-asks about preferences you stated last week, and repeats mistakes it already made. Meanwhile your actual knowledge — the books you've read, the notes you've written, the decisions you've made — sits in folders no AI can see.
 
-## 🎯 Why This Matters
+Psyche fixes both halves:
 
-> **Turn your Obsidian vaults, books, and documents into a private, local-first knowledge-guided decision and experiment tracking system for AI assistants.**
+1. **A knowledge layer** — your PDFs, EPUBs, Obsidian vaults and docs become a hybrid-searchable, *cited* library every MCP-capable assistant can query.
+2. **A memory layer** — durable facts (preferences, decisions, lessons) are extracted automatically and shared across **every agent you use**. A preference stated in Codex is known to Claude Code. A lesson learned in Antigravity follows you everywhere.
 
-Standard LLM assistants operate within a temporary, sliding window of context—every time you start a new chat, your guidelines, goals, and learnings are completely forgotten. Psyche bridges this gap by giving your AI tools a stateful, local-first guidance engine that runs 100% offline. It allows you to build a persistent, private second brain that tracks your goals, generates knowledge-grounded experiments, and helps you formulate personal rules.
+Everything runs on your machine. Nothing is uploaded. No subscription, no API bill for memory.
 
 ---
 
-## 🔒 Built on Trust (Local-First & Private)
+## ⚡ 60-second start
 
-Hosted RAG and document-search tools suffer from a critical privacy problem: they require uploading your private thoughts, diaries, and books to third-party servers.
+```bash
+git clone https://github.com/Nam-Aniket/psyche.git
+cd psyche
+./setup.sh
+psyche web
+```
+
+`psyche web` opens the app in your browser and — on first launch — **auto-wires every AI agent it detects on your machine** (Claude Code, Codex, Gemini CLI / Antigravity). From there:
+
+- **Drag documents in** → chunked, embedded and indexed locally in seconds.
+- **Graph** → an interactive concept map of everything you've ingested.
+- **Chat** → ask questions, get passages with source, author and page citations.
+- **Coach** → guidance briefs grounded in *your* library, not generic advice.
+- **Memory** → watch the facts your agents accumulate, scoped per topic.
+- **Setup** → see exactly which agents are wired, connect new ones in one click.
+
+> Prefer pip? `pipx install git+https://github.com/Nam-Aniket/psyche.git` gives you the same `psyche` CLI.
+
+---
+
+## 🔒 Built on trust (local-first & private)
+
+Hosted RAG and memory SaaS tools have one fatal flaw: they require uploading your private thoughts, diaries and books to somebody else's server.
 
 Psyche is built from the ground up for absolute data safety:
-*   🛡️ **100% Local Indexing**: All text parsing, chunking, and vector embedding calculations occur entirely on your local machine using fast ONNX models or Ollama.
-*   🚫 **No Silent Uploads**: Your documents never leave your disk.
-*   🔍 **Strict Citations**: Every single search result includes direct file paths, chapters, or page numbers so you can immediately verify where the assistant sourced its knowledge.
+
+- 🛡️ **100% local indexing** — parsing, chunking and vector embeddings all run on your machine (ONNX models or Ollama).
+- 🚫 **No silent uploads** — your documents never leave your disk. The web app binds to `127.0.0.1`.
+- 🔍 **Strict citations** — every search result carries the file, chapter or page it came from, so you can verify instantly.
 
 ---
 
-## ⚡ Absurdly Fast Installation (The 2-Step Golden Path)
+## 🖥️ The web app
 
-Ready to connect your documents to your assistant? It takes under 60 seconds.
+One command, no config files, no YAML. `psyche web` gives you:
 
-### 1. Ingest your notes and books
-Point Psyche at folders containing markdown, PDFs, EPUBs, Org files, or DOCX documents:
-```bash
-npx psyche ingest ~/Documents ~/Obsidian
-```
+| Tab | What it does for you |
+|---|---|
+| **Setup** | Live connection status for Claude Code, Codex, Gemini and Antigravity — one click wires an agent's real config files (backed up first, idempotent) |
+| **Upload** | Drag-and-drop ingestion for PDF, EPUB, Markdown, DOCX, Org and TXT, with real titles and authors parsed from document metadata |
+| **Graph** | A living concept map — click any node to read its definition and trace what it connects to |
+| **Chat** | Cited passages from your library; wire a chat model (free Gemini key or local Ollama) for written answers |
+| **Coach** | Guidance briefs grounded in your ingested books and your tracked goals and rules |
+| **Memory** | Every durable fact your agents have saved — filterable, topic-scoped, with an entity graph |
 
-### 2. Expose your knowledge as an MCP Tool
-Start the Model Context Protocol (MCP) server so Cursor, Claude Desktop, or Antigravity can query it:
-```bash
-npx psyche start-mcp
-```
-
----
-
-## 🧠 Stateful Agent Memory (Letta/MemGPT Hierarchy)
-
-Rather than treating RAG as a static, read-only search engine, Psyche implements a dynamic, hierarchical memory system for your AI agents:
-
-1.  **Document Knowledge (Archival RAG)**: Hybrid FTS5 (BM25) lexical search and HNSW vector search over your files (`search_knowledge`).
-2.  **Core Memory (RAM)**: Key-value facts and project guidelines (e.g. coding preferences, styling choices, naming rules) that the agent writes and reads dynamically (`write_memory_core`).
-3.  **Archival Memory (Disk)**: Vector-embedded logs, learnings, and debugging context that the agent archives for long-term reference (`append_memory_archival`).
-4.  **Interaction History (Recall)**: Stateful logging of conversation turns to ensure context persistence across assistant sessions (`record_interaction`).
-5.  **Atomic Memory (Cross-Agent Facts)**: Deduplicated, one-sentence facts with agent/run scope and entity links, hybrid-retrieved and injected into your coding agents automatically (`add_memory`, `search_memories`, `update_memory`, `delete_memory`, `list_entities`). See the next section.
+Topic libraries keep separate corpora separate: a `naval` library for decision-making, a research library for a paper, your default library for everything else — switchable from the app bar.
 
 ---
 
-## 🔁 Atomic Memory: One Brain Across Claude Code, Codex & Antigravity
+## 🔁 One memory. Every agent. $0.
 
-> **Your AI assistant has amnesia. You've been paying for it — in tokens — every single session.**
+Psyche's atomic memory layer is a mem0-class engine — extraction, deduplication, hybrid retrieval, entity links — that runs entirely on your machine and is shared by every agent you use.
 
-Every new session, your coding agent re-reads the same files to rediscover your conventions, re-asks about preferences you stated last week, and repeats mistakes it already made. You pay for that re-derivation in tokens, latency, and patience — typically **10,000–40,000 redundant tokens per session** on a recurring project.
-
-Psyche's atomic memory layer ends that. It is a mem0-class memory engine — extraction, deduplication, hybrid retrieval, entity links — that runs entirely on your machine, costs $0, and is shared by **every agent you use**. A preference you state in Codex is known to Claude Code. A lesson learned in Antigravity follows you everywhere.
-
-| | The old way | With Psyche atomic memory |
+| | The old way | With Psyche |
 |---|---|---|
-| Session start | Agent rediscovers context from scratch | ~1.5 KB of standing facts injected automatically |
-| Each prompt | You re-explain, agent re-reads | Up to ~800 tokens of *relevant* facts — only when a strong match exists, never noise |
+| Session start | Agent rediscovers context from scratch | Standing facts injected automatically |
+| Each prompt | You re-explain, agent re-reads | Up to ~800 tokens of *relevant* facts — only on a strong match, never noise |
 | Session end | Everything is forgotten | Durable facts extracted and stored, zero tokens billed to your agent |
 | Your data | Re-uploaded to a hosted memory SaaS | Never leaves your disk |
 | Cross-agent | Each tool has its own silo | One shared local store for all of them |
 
 The mechanics that make it free and fast:
-*   ✂️ **ADD-only writes with a cosine duplicate guard** — no per-fact LLM judging loops burning API calls; conflicts resolve at read time by recency.
-*   🎯 **Similarity-gated injection** — weak matches inject *nothing*. A session-level ledger guarantees a fact is never injected twice. Memory that wastes tokens isn't memory, it's noise.
-*   🔍 **Three-signal retrieval** — HNSW vector search + FTS5 keywords + entity matching, fused with RRF. The same retrieval stack that powers `search_knowledge`, on a dedicated facts index that never pollutes your document search.
-*   **Cache-stable memory injection.** Psyche injects your standing facts as a byte-stable, cache-aligned block: facts are ordered by immutable id with volatile fields (timestamps) stripped, so the injected prefix is identical across sessions. Unlike memory injectors that stamp timestamps or re-rank by recency — which change the prefix and force the host model to *re-write* its prompt cache (1.25× input price) instead of *reading* it (0.1×) — Psyche's block stays cache-warm and never becomes a source of cache churn. `psyche mem stats` reports **measured** cache behavior straight from your Claude Code transcripts, and clearly separates host-cache context from what's attributable to Psyche. We deliberately don't headline a "saves you X%" number, because the honest, attributable effect is cost-*avoidance* versus a cache-busting design, not a blanket discount.
 
-### Per-agent integration
+- ✂️ **ADD-only writes with a cosine duplicate guard** — no per-fact LLM judging loops burning API calls; conflicts resolve at read time by recency.
+- 🎯 **Similarity-gated injection** — weak matches inject *nothing*, and a session ledger guarantees a fact is never injected twice. Memory that wastes tokens isn't memory, it's noise.
+- 🔍 **Three-signal retrieval** — HNSW vectors + FTS5 keywords + entity matching, fused with Reciprocal Rank Fusion.
+- 🧊 **Cache-stable injection** — facts are injected as a byte-stable, cache-aligned block (ordered by immutable id, volatile fields stripped), so your host model *reads* its prompt cache instead of re-writing it. `psyche mem stats` reports measured cache behavior straight from your transcripts.
 
-*   🤖 **Claude Code — fully automatic (hooks).** Lifecycle hooks inject standing facts at session start, search memories on every prompt, and extract new facts at session end. The model spends **zero** tool schemas and zero turns on memory — the harness does it all.
-*   ⌨️ **Codex — MCP + `AGENTS.md` protocol.** Codex calls `search_memories` at task start and `add_memory` when you state preferences or decisions, guided by a drop-in protocol block in `~/.codex/AGENTS.md`.
-*   🛸 **Antigravity — MCP + global rules.** Same protocol via `~/.gemini/GEMINI.md`; the shared `~/.gemini/config/mcp_config.json` covers the IDE, CLI, and Antigravity 2.0 in one entry.
-*   💬 **Claude Desktop / Cursor — MCP tools.** Six memory tools (`add_memory`, `search_memories`, `get_memory`, `update_memory`, `delete_memory`, `list_entities`) on the same Psyche server you already have configured.
+### How each agent gets its memory
+
+| Agent | Integration | What Psyche writes |
+|---|---|---|
+| **Claude Code** | Fully automatic lifecycle hooks — recall at session start and on every prompt, extraction on compact/end. Zero tool schemas, zero model overhead | `~/.claude/settings.json` (MCP entry + 5 hooks) |
+| **Codex** | MCP tools + a memory-protocol block guiding when to save and search; `notify` chained for auto-capture | `~/.codex/config.toml` + `~/.codex/AGENTS.md` |
+| **Gemini CLI / Antigravity** | Same hook schema as Claude Code, plus the protocol block | `~/.gemini/settings.json`, `mcp_config.json` + `GEMINI.md` |
+| **Cursor / Claude Desktop** | MCP memory tools (`add_memory`, `search_memories`, …) — the model drives memory itself | `~/.cursor/mcp.json` / desktop config |
+
+Every write is **backed up once** (`*.psyche-bak`) and **idempotent** — running connect twice changes nothing. Your existing hooks and MCP servers are always preserved.
 
 > [!NOTE]
-> Search and injection run on local ONNX embeddings out of the box. Automatic fact *extraction* from transcripts activates when a chat model is configured (`psyche setup` — a free Gemini key or local Ollama both work). Without one, facts accumulate through the explicit `add_memory` tool — and everything else works identically.
+> Search and injection run on local ONNX embeddings out of the box. Automatic fact *extraction* from transcripts activates when a chat model is configured (`psyche setup` — a free Gemini key or local Ollama both work). Without one, facts still accumulate through the `add_memory` tool — everything else works identically.
 
 ---
 
-## 🧭 Personal Upgrade & Guidance Engine
+## 🧠 Stateful agent memory (Letta/MemGPT hierarchy)
 
-Psyche goes beyond static memory by actively tracking your goals, experiments, and learnings across domains (Business, Health, Wealth, Career, Happiness, and Ideation). AI agents use this layer to act as your personal coach, grounded strictly in the knowledge you have ingested.
+Beyond atomic facts, Psyche gives agents a full hierarchical memory:
 
-- **Goals & Metrics**: Track what you are trying to achieve and the objective metrics that define success.
-- **Experiments**: Formulate actionable hypotheses grounded in your notes and books, complete with success/failure conditions.
-- **Reviews**: Log what happened, what worked, and what didn't to extract actionable lessons.
-- **Personal Rules**: Crystalize hard-learned lessons into enduring principles that the AI will remind you of in future sessions.
-- **Idea Generation**: Expand upon raw ideas using your knowledge base to generate actionable prototypes and next steps.
+1. **Document knowledge (archival RAG)** — hybrid FTS5 (BM25) + HNSW vector search over your files (`search_knowledge`).
+2. **Core memory (RAM)** — key-value guidelines the agent reads and writes dynamically (`write_memory_core`).
+3. **Archival memory (disk)** — vector-embedded logs and learnings for long-term reference (`append_memory_archival`).
+4. **Interaction history (recall)** — stateful conversation logging across sessions (`record_interaction`).
+5. **Atomic memory (cross-agent facts)** — the deduplicated, entity-linked fact store described above.
 
-When an AI assistant calls the `generate_guidance` tool, Psyche uses Reciprocal Rank Fusion and Cross-Encoder reranking to find the most relevant principles from your documents, compares them to your current goals and rules, and outputs a structured **Guidance Brief** detailing exactly what you should do next.
+---
+
+## 🧭 Personal guidance engine
+
+Psyche actively tracks your goals, experiments and hard-won rules across domains (Business, Health, Wealth, Career, Happiness, Ideation) — and grounds every piece of advice in the books and notes *you* chose to ingest.
+
+- **Goals & metrics** — what you're trying to achieve and how success is measured.
+- **Experiments** — actionable hypotheses with explicit success/failure conditions.
+- **Reviews & rules** — log what worked, crystalize lessons into principles your AI will hold you to.
+- **Guidance briefs** — `generate_guidance` fuses your goals, rules and library (RRF + cross-encoder reranking) into a structured brief on what to do next. Also available as the **Coach** tab.
 
 ---
 
 ## 🍳 Recipes
 
-Here is how you can put Psyche to work immediately:
-
 ### 📓 Chat with your Obsidian vault
-Ingest your markdown notes recursively. Psyche automatically strips YAML frontmatter, cleans wikilinks (`[[Concept|Display]]` -> `Display`), and extracts tags:
+Frontmatter stripped, wikilinks cleaned (`[[Concept|Display]]` → `Display`), tags extracted:
 ```bash
-npx psyche ingest ~/Obsidian/PersonalVault
+psyche ingest ~/Obsidian/PersonalVault
 ```
 
-### 📚 Query a folder of PDFs and Ebooks
-Ingest a library of research papers, PDFs, or EPUB books. Psyche extracts text and tracks page/location details:
+### 📚 Query a folder of PDFs and ebooks
+Real titles and authors are parsed from document metadata; pages are tracked for citations:
 ```bash
-npx psyche ingest ~/Downloads/Books --ext pdf,epub
+psyche ingest ~/Downloads/Books --ext pdf,epub
 ```
 
 > [!TIP]
-> **Robust PDF Extraction:** If your PDFs are malformed or show warnings (e.g., `Ignoring wrong pointing object`), install `pymupdf` in Psyche's environment for highly robust, C-accelerated parsing:
-> ```bash
-> pip install pymupdf
-> ```
-> **Re-ingestion / Overwriting:** If you want to force re-ingestion of already processed documents (e.g., to upgrade their extracted contents using PyMuPDF), use the `--force` (or `-f`) flag:
-> ```bash
-> npx psyche ingest ~/Downloads/Books --force
-> ```
-
+> **Malformed PDFs?** Install `pymupdf` in Psyche's environment for C-accelerated, highly robust parsing, then re-ingest with `--force`.
 
 ### 💾 Run fully offline with Ollama
-Configure Ollama (`llama3` + `nomic-embed-text`) during the setup wizard to query your index completely offline with no network connection at all:
+Configure Ollama (`llama3` + `nomic-embed-text`) in the setup wizard and query your index with no network at all:
 ```bash
-npx psyche setup
+psyche setup
 ```
 
-### 🧠 Give Claude Code automatic memory (hooks)
-Wire the three bundled hook scripts into `~/.claude/settings.json` so facts flow in and out of sessions with zero model overhead:
-```json
-"hooks": {
-  "SessionStart":     [{"hooks": [{"type": "command", "command": "<psyche>/.venv/bin/python <psyche>/hooks/psyche_session_start.py", "timeout": 15}]}],
-  "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "<psyche>/.venv/bin/python <psyche>/hooks/psyche_prompt_submit.py", "timeout": 15}]}],
-  "PreCompact":       [{"hooks": [{"type": "command", "command": "<psyche>/.venv/bin/python <psyche>/hooks/psyche_extract.py", "timeout": 60}]}],
-  "SessionEnd":       [{"hooks": [{"type": "command", "command": "<psyche>/.venv/bin/python <psyche>/hooks/psyche_extract.py", "timeout": 60}]}]
-}
+### 🤖 Wire an agent from the terminal
+The web app's Setup tab does this in one click, but the CLI works too:
+```bash
+psyche connect claude-code   # or: codex, gemini, antigravity, cursor
 ```
-
-### 🤝 Share one memory across Codex and Antigravity
-With the Psyche MCP server registered in `~/.codex/config.toml` and `~/.gemini/config/mcp_config.json`, drop the memory protocol block ([docs/memory-protocol.md](docs/memory-protocol.md)) into `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`. Both agents will then read and write the same fact store Claude Code uses.
 
 ---
 
-## 🏗️ How it Works (System Architecture)
+## 🏗️ How it works (system architecture)
 
 ```mermaid
 flowchart TD
@@ -180,7 +179,7 @@ flowchart TD
     end
 
     subgraph Process ["2. Ingest & Index"]
-        ingest["psyche ingest"]
+        ingest["psyche ingest / web Upload"]
         clean["Wikilink Cleaner & Frontmatter Stripper"]
         chunk["Location-Aware Chunking"]
         sqlite[("SQLite DB (Metadata)")]
@@ -195,10 +194,10 @@ flowchart TD
         flashrank["flashrank ONNX Reranker (Offline)"]
     end
 
-    subgraph Serve ["4. AI Assistants (MCP)"]
+    subgraph Serve ["4. AI Assistants (MCP) + Web App"]
         mcp["MCP JSON-RPC Server"]
-        cli["Interactive REPL Chat"]
-        editor["Cursor / Claude Desktop / Antigravity"]
+        web["psyche web (Graph · Chat · Coach · Memory)"]
+        editor["Claude Code / Codex / Cursor / Antigravity"]
     end
 
     Local --> ingest
@@ -206,74 +205,51 @@ flowchart TD
     chunk --> sqlite & fts5 & sqlite_vec & usearch
     sqlite & fts5 & sqlite_vec & usearch --> query
     query --> rrf --> flashrank
-    flashrank --> mcp & cli
+    flashrank --> mcp & web
     mcp --> editor
 ```
 
-1.  **Ingest**: Scan folders.
-2.  **Process**: Chunks texts, cleans markdown syntax, and prepares metadata.
-3.  **Embed & Index**: Generates vector embeddings (locally via ONNX/fastembed) and indexes them in a C-level SQLite vector index (`sqlite-vec`) and an HNSW vector index (`usearch`).
-4.  **Retrieve**: Merges lexical matches (FTS5 `bm25`) and semantic matches using **Reciprocal Rank Fusion (RRF)**.
-5.  **Rerank**: Rescores matches locally on CPU using a lightweight ONNX Cross-Encoder model (`flashrank`).
-6.  **Serve**: Exposes search/write tools to editors and LLMs via Model Context Protocol (MCP).
+1. **Ingest** — scan folders or drag files into the web app.
+2. **Process** — chunk text, clean markdown, prepare metadata (real titles/authors from PDF/EPUB metadata).
+3. **Embed & index** — local ONNX embeddings into `sqlite-vec` and a `usearch` HNSW index.
+4. **Retrieve** — lexical (FTS5 BM25) + semantic matches fused with **Reciprocal Rank Fusion**.
+5. **Rerank** — a lightweight ONNX cross-encoder (`flashrank`) rescores on CPU.
+6. **Serve** — MCP tools for your agents, and the web app for you.
 
 ---
 
-## 🔮 Theme Mapping (GraphRAG Concept Networks)
+## 🔮 Theme mapping (GraphRAG concept networks)
 
-Identify connections across your entire notes collection. Run `psyche build-graph` to cluster vectors using K-Means and map co-occurrences of proper nouns. Ask your assistant conceptual questions like:
-*   *"What themes connect my notes on career, discipline, and AI agents?"*
-*   *"Summarize how my Stoicism files relate to my writing tips."*
+Run `psyche build-graph` (or hit **Rebuild** in the Graph tab) to cluster your corpus into a concept network, then ask:
+
+- *"What themes connect my notes on career, discipline, and AI agents?"*
+- *"Summarize how my Stoicism files relate to my writing tips."*
 
 ---
 
-## 🚀 Installation & Developer Setup
+## 🚀 Installation
 
-### 1. Install via NPM (Recommended)
-Install the package globally:
-```bash
-npm install -g psyche
-```
-
-### 2. Install via Pipx (Python alternative)
-```bash
-pipx install git+https://github.com/Nam-Aniket/psyche.git
-```
-
-### 3. Clone & Develop Locally
+### Clone & run (recommended)
 ```bash
 git clone https://github.com/Nam-Aniket/psyche.git
 cd psyche
 ./setup.sh
+psyche web
 ```
 
----
-
-## 🔌 Integrating with Cursor / Claude Desktop / Antigravity
-
-### 🛠️ Automatic Configuration (Smithery.ai)
+### Pipx
 ```bash
-npx -y @smithery/cli install psyche --client claude
+pipx install git+https://github.com/Nam-Aniket/psyche.git
 ```
 
-### ⚙️ Manual Configuration (Cursor)
-Open **Cursor Settings** -> **Features** -> **MCP**, click **+ Add New MCP Server**:
-*   **Name:** `psyche`
-*   **Type:** `command`
-*   **Command:** `npx -y psyche start-mcp`
-
-### ⚙️ Manual Configuration (Claude Desktop)
-Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+### Manual MCP configuration (Claude Desktop example)
+`psyche connect` (or the web Setup tab) handles Claude Code, Codex, Gemini, Antigravity and Cursor automatically. For Claude Desktop, add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
     "psyche": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "psyche",
-        "start-mcp"
-      ]
+      "command": "/path/to/psyche/.venv/bin/python",
+      "args": ["/path/to/psyche/cli.py", "start-mcp"]
     }
   }
 }
@@ -281,13 +257,13 @@ Add this to `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ---
 
-## 🧪 Running Tests
-Verify database migrations, FTS5 keywords, and vector searches:
+## 🧪 Running tests
 ```bash
 .venv/bin/python -m unittest discover tests
 ```
 
 ---
 
-## ⭐ Support the Project
-If you find Psyche useful for giving your AI assistants a local brain, please consider starring the repository! It helps other developers discover the project and supports local-first, privacy-focused developer tooling.
+## ⭐ Support the project
+
+If Psyche gives your AI assistants a local brain worth keeping, star the repo — it helps other developers discover local-first, privacy-first tooling.
