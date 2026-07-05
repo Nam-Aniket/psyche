@@ -157,5 +157,35 @@ class TestDriftAndPartner(unittest.TestCase):
         self.assertIsNone(brainstorm.pick_partner(0, matrix, index, band=(0.2, 0.5)))
 
 
+class _FakeLLM:
+    """Stub with the LLMClient surface brainstorm uses."""
+    def __init__(self, replies, chat_model="fake"):
+        self.replies = list(replies)
+        self.chat_model = chat_model
+
+    def generate_completion(self, system, prompt):
+        return self.replies.pop(0)
+
+    def get_embedding(self, text):
+        return [0.1, 0.2, 0.3]
+
+
+class TestCollide(unittest.TestCase):
+    def test_parses_valid_json(self):
+        llm = _FakeLLM(['{"hypothesis": "H", "kill_test": "T"}'])
+        out = brainstorm.collide("text a", "text b", llm)
+        self.assertEqual(out, {"hypothesis": "H", "kill_test": "T"})
+
+    def test_strips_markdown_fence(self):
+        llm = _FakeLLM(['```json\n{"hypothesis": "H2", "kill_test": "T2"}\n```'])
+        out = brainstorm.collide("a", "b", llm)
+        self.assertEqual(out["hypothesis"], "H2")
+
+    def test_retries_once_then_returns_none(self):
+        llm = _FakeLLM(["not json", "still not json"])
+        self.assertIsNone(brainstorm.collide("a", "b", llm))
+        self.assertEqual(llm.replies, [])  # both attempts consumed
+
+
 if __name__ == "__main__":
     unittest.main()

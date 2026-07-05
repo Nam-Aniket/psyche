@@ -4,6 +4,7 @@ Purely additive. Reads embeddings from existing per-topic DBs; writes hypotheses
 own ~/.psyche/brainstorm.db. Does not touch any existing retrieval/memory/graph code.
 """
 import glob
+import json
 import os
 import sqlite3
 from datetime import datetime, timezone
@@ -11,6 +12,31 @@ from datetime import datetime, timezone
 import numpy as np
 
 import db
+
+_COLLIDE_SYSTEM = (
+    "You are a hypothesis generator. You are given two unrelated notes from the user's "
+    "private knowledge base. Find a NON-OBVIOUS connection and state it as a single "
+    "FALSIFIABLE hypothesis - a claim that could be proven wrong by evidence. Reject vague "
+    "'these both relate to X' observations. Then give the single cheapest real-world test "
+    "that could kill it. Respond ONLY with JSON: "
+    '{"hypothesis": "...", "kill_test": "..."}'
+)
+
+
+def collide(text_a, text_b, llm):
+    """Return {'hypothesis','kill_test'} bridging the two texts, or None after one retry."""
+    from build_graph import clean_json_text
+    prompt = f"NOTE A:\n{text_a}\n\nNOTE B:\n{text_b}"
+    for _ in range(2):
+        raw = llm.generate_completion(_COLLIDE_SYSTEM, prompt)
+        try:
+            data = json.loads(clean_json_text(raw))
+            if "hypothesis" in data and "kill_test" in data:
+                return {"hypothesis": data["hypothesis"], "kill_test": data["kill_test"]}
+        except (json.JSONDecodeError, TypeError):
+            pass
+        prompt = "Your last reply was not valid JSON. " + prompt  # stricter retry
+    return None
 
 
 def _now():
