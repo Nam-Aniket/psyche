@@ -6,10 +6,89 @@ own ~/.psyche/brainstorm.db. Does not touch any existing retrieval/memory/graph 
 import glob
 import os
 import sqlite3
+from datetime import datetime, timezone
 
 import numpy as np
 
 import db
+
+
+def _now():
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _ledger_path():
+    return db.resolve_db_path("brainstorm.db")
+
+
+def _ledger_conn(path=None):
+    conn = sqlite3.connect(path or _ledger_path())
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS hypotheses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            kill_test TEXT,
+            topic_a TEXT, chunk_a INTEGER,
+            topic_b TEXT, chunk_b INTEGER,
+            snippet_a TEXT, snippet_b TEXT,
+            drift REAL,
+            embedding_blob BLOB,
+            status TEXT NOT NULL DEFAULT 'new',
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    return conn
+
+
+_HYP_COLS = ["id", "text", "kill_test", "topic_a", "chunk_a", "topic_b", "chunk_b",
+             "snippet_a", "snippet_b", "drift", "status", "notes", "created_at", "updated_at"]
+
+
+def insert_hypothesis(path, *, text, kill_test, topic_a, chunk_a, snippet_a,
+                      topic_b, chunk_b, snippet_b, drift, embedding):
+    conn = _ledger_conn(path)
+    now = _now()
+    blob = np.asarray(embedding, dtype=np.float32).tobytes()
+    cur = conn.execute(
+        """INSERT INTO hypotheses
+           (text, kill_test, topic_a, chunk_a, topic_b, chunk_b, snippet_a, snippet_b,
+            drift, embedding_blob, status, notes, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'new', NULL, ?, ?)""",
+        (text, kill_test, topic_a, chunk_a, topic_b, chunk_b, snippet_a, snippet_b,
+         drift, blob, now, now))
+    conn.commit()
+    hid = cur.lastrowid
+    conn.close()
+    return hid
+
+
+def list_hypotheses(path, status=None):
+    conn = _ledger_conn(path)
+    q = f"SELECT {', '.join(_HYP_COLS)} FROM hypotheses"
+    args = ()
+    if status:
+        q += " WHERE status = ?"
+        args = (status,)
+    q += " ORDER BY created_at DESC"
+    rows = [dict(zip(_HYP_COLS, r)) for r in conn.execute(q, args).fetchall()]
+    conn.close()
+    return rows
+
+
+def update_hypothesis(path, hid, status=None, notes=None):
+    conn = _ledger_conn(path)
+    sets, args = ["updated_at = ?"], [_now()]
+    if status is not None:
+        sets.append("status = ?"); args.append(status)
+    if notes is not None:
+        sets.append("notes = ?"); args.append(notes)
+    args.append(hid)
+    conn.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id = ?", args)
+    conn.commit()
+    conn.close()
 
 
 def _base_dir():

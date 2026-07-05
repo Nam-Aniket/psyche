@@ -80,5 +80,29 @@ class TestPool(unittest.TestCase):
         self.assertTrue(all("source" in r for r in index))
 
 
+class TestLedger(unittest.TestCase):
+    def setUp(self):
+        self.ledger = os.path.join(tempfile.mkdtemp(), "brainstorm.db")
+
+    def test_insert_list_update_roundtrip(self):
+        emb = np.array([0.1, 0.2, 0.3], dtype=np.float32)
+        hid = brainstorm.insert_hypothesis(
+            self.ledger, text="H1", kill_test="ten emails",
+            topic_a="default", chunk_a=1, snippet_a="a...",
+            topic_b="naval", chunk_b=1, snippet_b="b...",
+            drift=0.5, embedding=emb)
+        self.assertIsInstance(hid, int)
+        rows = brainstorm.list_hypotheses(self.ledger)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["status"], "new")
+        self.assertEqual(rows[0]["topic_b"], "naval")
+
+        brainstorm.update_hypothesis(self.ledger, hid, status="killed", notes="reality said no")
+        killed = brainstorm.list_hypotheses(self.ledger, status="killed")
+        self.assertEqual(len(killed), 1)
+        self.assertEqual(killed[0]["notes"], "reality said no")
+        self.assertEqual(brainstorm.list_hypotheses(self.ledger, status="new"), [])
+
+
 if __name__ == "__main__":
     unittest.main()
