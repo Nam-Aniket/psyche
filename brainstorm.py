@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import sqlite3
+from collections import Counter
 from datetime import datetime, timezone
 
 import numpy as np
@@ -241,6 +242,51 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             "source_b": {"topic": index[p]["topic"], "snippet": text_b[:300]},
         })
     return results
+
+
+def _cluster_label(members, index):
+    """Label a cluster by its dominant topic + most common source."""
+    topics = Counter(index[i]["topic"] for i in members)
+    sources = Counter(index[i]["source"] for i in members)
+    return {
+        "topic": topics.most_common(1)[0][0],
+        "source": sources.most_common(1)[0][0],
+        "size": len(members),
+    }
+
+
+def report_gaps(topics=None, top=10, base_dir=None, ledger_path=None, num_clusters=None):
+    """Report the most disconnected cluster pairs across the pooled corpus."""
+    from build_graph import kmeans
+    found = discover_topics(base_dir)
+    kept, _ = select_compatible_topics(found, requested=topics)
+    matrix, index = build_pool(kept)
+    n = matrix.shape[0]
+    if n < 2:
+        return {"cluster_gaps": [], "isolated_concepts": [], "note": "not enough material yet"}
+
+    k = num_clusters or max(2, min(12, int(np.sqrt(n))))
+    labels, centroids = kmeans(matrix, k)
+
+    members = {c: [i for i in range(n) if labels[i] == c] for c in range(k)}
+    if sum(1 for c in members if members[c]) < 2:
+        # kmeans collapsed everything into one cluster (can happen when the corpus is
+        # very homogeneous or on a degenerate init) — no gaps to report this pass.
+        return {"cluster_gaps": [], "isolated_concepts": [],
+                "note": "clustering did not separate the corpus; try again or ingest more variety"}
+    gaps = []
+    for a in range(k):
+        for b in range(a + 1, k):
+            if not members[a] or not members[b]:
+                continue
+            sim = float(np.dot(centroids[a], centroids[b]))
+            gaps.append({
+                "cluster_a": _cluster_label(members[a], index),
+                "cluster_b": _cluster_label(members[b], index),
+                "similarity": sim,
+            })
+    gaps.sort(key=lambda g: g["similarity"])  # most distant first
+    return {"cluster_gaps": gaps[:top], "isolated_concepts": []}
 
 
 def _source_titles(conn):

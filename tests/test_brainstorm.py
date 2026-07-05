@@ -191,6 +191,39 @@ class TestCollide(unittest.TestCase):
         self.assertEqual(llm.replies, [])  # both attempts consumed
 
 
+class TestGaps(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        # Two clearly separated blobs so kmeans finds distant clusters.
+        gpath = os.path.join(self.dir, "knowledge.db")
+        db.init_db(gpath)
+        conn = db.get_connection(gpath)
+        conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('embed_model','BAAI/bge-small-en-v1.5')")
+        conn.execute("INSERT INTO sources (id, title, author, checksum, created_at) VALUES (1,'s','a','gapchk','2026-01-01')")
+        # Two near-orthogonal blobs WITH tiny jitter — identical vectors would trigger a
+        # degenerate kmeans init (both seeds land on the same point). Jitter keeps every
+        # vector distinct so kmeans separates the two blobs.
+        rng = np.random.default_rng(0)
+        vecs = list(np.array([1.0, 0.0], np.float32) + rng.standard_normal((30, 2)).astype(np.float32) * 0.02)
+        vecs += list(np.array([0.0, 1.0], np.float32) + rng.standard_normal((30, 2)).astype(np.float32) * 0.02)
+        for i, v in enumerate(vecs, start=1):
+            conn.execute("INSERT INTO chunks (id, source_id, chunk_index, text) VALUES (?,1,?,?)",
+                         (i, i, f"text chunk {i} " * 20))
+            conn.execute("INSERT INTO embeddings (chunk_id, embedding_blob) VALUES (?,?)", (i, v.tobytes()))
+        conn.commit(); conn.close()
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_reports_distant_cluster_pairs(self):
+        out = brainstorm.report_gaps(topics=None, top=5, base_dir=self.dir,
+                                     ledger_path=self.ledger, num_clusters=2)
+        self.assertIn("cluster_gaps", out)
+        self.assertGreaterEqual(len(out["cluster_gaps"]), 1)
+        gap = out["cluster_gaps"][0]
+        self.assertIn("cluster_a", gap)
+        self.assertIn("cluster_b", gap)
+        self.assertLess(gap["similarity"], 0.5)  # the two blobs are orthogonal
+
+
 class TestGenerate(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
