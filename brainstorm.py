@@ -52,6 +52,36 @@ def _embed_signature(db_path):
         return (None, None)
 
 
+def _source_titles(conn):
+    """chunk_id -> source title map, cheaply (no chunk text loaded)."""
+    rows = conn.execute(
+        "SELECT c.id, s.title FROM chunks c JOIN sources s ON c.source_id = s.id"
+    ).fetchall()
+    return {cid: title for cid, title in rows}
+
+
+def build_pool(kept):
+    """Load embeddings from each kept topic DB into one matrix + parallel index.
+
+    Returns (matrix: np.ndarray [N, dim], index: list[{"topic","chunk_id","source"}]).
+    Global identity is (topic, chunk_id) because chunk ids are only unique within a file.
+    """
+    vecs, index = [], []
+    for topic, path in kept.items():
+        conn = db.get_connection(path)
+        titles = _source_titles(conn)
+        for rec in db.get_all_embeddings_only(conn):
+            emb = rec["embedding"]
+            if emb is None:
+                continue
+            vecs.append(emb)
+            index.append({"topic": topic, "chunk_id": rec["chunk_id"],
+                          "source": titles.get(rec["chunk_id"], "?")})
+        conn.close()
+    matrix = np.array(vecs, dtype=np.float32) if vecs else np.empty((0, 0), dtype=np.float32)
+    return matrix, index
+
+
 def select_compatible_topics(found, requested=None):
     """Keep topics sharing the majority (embed_model, dim); return (kept: dict, skipped: dict).
 

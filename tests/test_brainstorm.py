@@ -58,5 +58,27 @@ class TestTopicDiscovery(unittest.TestCase):
         self.assertIn("odd", skipped)  # different embed_model -> dropped
 
 
+class TestPool(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=3)
+        _make_topic_db(os.path.join(self.dir, "topic_naval.db"), n=2)
+
+    def test_pool_concatenates_and_tags_topic(self):
+        found = brainstorm.discover_topics(base_dir=self.dir)
+        kept, _ = brainstorm.select_compatible_topics(found, requested=None)
+        matrix, index = brainstorm.build_pool(kept)
+        self.assertEqual(matrix.shape[0], 5)         # 3 + 2 chunks
+        self.assertEqual(len(index), 5)
+        topics = {row["topic"] for row in index}
+        self.assertEqual(topics, {"default", "naval"})
+        # identity is (topic, chunk_id); chunk_id 1 exists in BOTH topics
+        pairs = {(r["topic"], r["chunk_id"]) for r in index}
+        self.assertIn(("default", 1), pairs)
+        self.assertIn(("naval", 1), pairs)
+        # each index row carries a source label
+        self.assertTrue(all("source" in r for r in index))
+
+
 if __name__ == "__main__":
     unittest.main()
