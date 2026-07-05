@@ -247,6 +247,33 @@ def append_memory_archival_tool(text: str, topic: str = None, author: str = "Ass
     finally:
         conn.close()
 
+def brainstorm_tool(count=5, drift=0.5, topics=None):
+    import brainstorm
+    try:
+        out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics)
+        return json.dumps({"hypotheses": out}, indent=2)
+    except (brainstorm.NoChatModelError, brainstorm.SparseCorpusError,
+            brainstorm.IncompatibleTopicsError) as e:
+        return json.dumps({"error": str(e)})
+
+
+def report_gaps_tool(top=10, topics=None):
+    import brainstorm
+    return json.dumps(brainstorm.report_gaps(top=top, topics=topics), indent=2)
+
+
+def list_hypotheses_tool(status=None):
+    import brainstorm
+    rows = brainstorm.list_hypotheses(brainstorm._ledger_path(), status=status)
+    return json.dumps({"hypotheses": rows}, indent=2, default=str)
+
+
+def update_hypothesis_tool(hid, status=None, notes=None):
+    import brainstorm
+    brainstorm.update_hypothesis(brainstorm._ledger_path(), hid, status=status, notes=notes)
+    return json.dumps({"ok": True, "id": hid})
+
+
 def main():
     log("Server starting on stdio transport...")
 
@@ -700,6 +727,52 @@ def main():
                                     }
                                 }
                             }
+                        },
+                        {
+                            "name": "brainstorm",
+                            "description": "Collide notes from ACROSS your topics into falsifiable hypotheses (GBrain-style idea generation). Returns hypotheses with a cheap kill-test and the two source snippets that collided. Each output is a hypothesis to test against reality, not a validated idea.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "count": {"type": "integer", "description": "How many hypotheses to generate (default 5)", "default": 5},
+                                    "drift": {"type": "number", "description": "0-1 collision wildness: low=closely related notes, high=distant/surprising pairs (default 0.5)", "default": 0.5},
+                                    "topics": {"type": "array", "items": {"type": "string"}, "description": "Topic names to collide across (e.g. ['default','naval']). Omit for all embedding-compatible topics."}
+                                }
+                            }
+                        },
+                        {
+                            "name": "report_gaps",
+                            "description": "Report the most disconnected regions of your knowledge - cluster pairs that never touch. Each gap is a candidate area to deliberately brainstorm or research.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "top": {"type": "integer", "description": "How many gaps to return (default 10)", "default": 10},
+                                    "topics": {"type": "array", "items": {"type": "string"}, "description": "Topic names to analyze. Omit for all compatible topics."}
+                                }
+                            }
+                        },
+                        {
+                            "name": "list_hypotheses",
+                            "description": "List stored brainstorm hypotheses and their lifecycle status.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "status": {"type": "string", "description": "Filter by status: new | researching | testing | killed | survived"}
+                                }
+                            }
+                        },
+                        {
+                            "name": "update_hypothesis",
+                            "description": "Move a hypothesis along its lifecycle (new -> researching -> testing -> killed/survived) and/or attach research notes.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "integer", "description": "Hypothesis id"},
+                                    "status": {"type": "string", "description": "New status: researching | testing | killed | survived"},
+                                    "notes": {"type": "string", "description": "Optional notes (research findings, why killed)"}
+                                },
+                                "required": ["id"]
+                            }
                         }
                     ]
                 }
@@ -875,6 +948,26 @@ def main():
                             text_result = "\n".join(f"- {e['entity']} ({e['count']})" for e in entities)
                         else:
                             text_result = "No entities recorded yet."
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "brainstorm":
+                        text_result = brainstorm_tool(
+                            count=arguments.get("count", 5),
+                            drift=arguments.get("drift", 0.5),
+                            topics=arguments.get("topics"))
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "report_gaps":
+                        text_result = report_gaps_tool(
+                            top=arguments.get("top", 10),
+                            topics=arguments.get("topics"))
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "list_hypotheses":
+                        text_result = list_hypotheses_tool(status=arguments.get("status"))
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "update_hypothesis":
+                        text_result = update_hypothesis_tool(
+                            arguments.get("id"),
+                            status=arguments.get("status"),
+                            notes=arguments.get("notes"))
                         resp["result"] = {"content": [{"type": "text", "text": text_result}]}
                     else:
                         resp["error"] = {
