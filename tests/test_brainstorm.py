@@ -124,5 +124,38 @@ class TestDedup(unittest.TestCase):
         self.assertFalse(brainstorm.is_duplicate(self.ledger, far, threshold=0.85))
 
 
+class TestDriftAndPartner(unittest.TestCase):
+    def test_drift_band_endpoints(self):
+        self.assertEqual(brainstorm.drift_band(0.0), (0.60, 0.75))
+        lo, hi = brainstorm.drift_band(0.5)
+        self.assertAlmostEqual(lo, 0.375, places=3)
+        self.assertAlmostEqual(hi, 0.525, places=3)
+        lo, hi = brainstorm.drift_band(1.0)
+        self.assertAlmostEqual(lo, 0.15, places=3)
+        self.assertAlmostEqual(hi, 0.30, places=3)
+
+    def test_partner_prefers_different_topic_in_band(self):
+        # anchor at index 0 (topic default). Two in-band candidates:
+        # idx1 same topic, idx2 different topic -> must pick idx2.
+        matrix = np.array([
+            [1.0, 0.0],     # anchor
+            [0.7, 0.71],    # same-topic, in band ~0.7
+            [0.7, 0.71],    # diff-topic, in band ~0.7
+        ], dtype=np.float32)
+        index = [
+            {"topic": "default", "chunk_id": 1, "source": "s1"},
+            {"topic": "default", "chunk_id": 2, "source": "s1"},
+            {"topic": "naval",   "chunk_id": 9, "source": "s2"},
+        ]
+        p = brainstorm.pick_partner(0, matrix, index, band=(0.5, 0.9))
+        self.assertEqual(index[p]["topic"], "naval")
+
+    def test_partner_none_when_band_empty(self):
+        matrix = np.array([[1.0, 0.0], [1.0, 0.0]], dtype=np.float32)  # sim 1.0, outside band
+        index = [{"topic": "default", "chunk_id": 1, "source": "s"},
+                 {"topic": "naval", "chunk_id": 1, "source": "s"}]
+        self.assertIsNone(brainstorm.pick_partner(0, matrix, index, band=(0.2, 0.5)))
+
+
 if __name__ == "__main__":
     unittest.main()

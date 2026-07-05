@@ -161,6 +161,52 @@ def build_pool(kept):
     return matrix, index
 
 
+# ponytail: band coefficients are the calibration knob. If first real runs on a given
+# embedding model put the "interesting" collisions elsewhere, tune BAND_HI/BAND_SPAN here.
+BAND_HI = 0.75      # upper edge at drift=0
+BAND_SPAN = 0.15    # band width
+BAND_SLOPE = 0.45   # how far the band slides down per unit drift
+
+
+def drift_band(drift):
+    """Return (low, high) cosine-similarity window for a drift in [0,1]."""
+    hi = BAND_HI - BAND_SLOPE * drift
+    return (hi - BAND_SPAN, hi)
+
+
+def _cosims(anchor_vec, matrix):
+    q = anchor_vec
+    qn = np.linalg.norm(q)
+    norms = np.linalg.norm(matrix, axis=1)
+    norms = np.where(norms == 0, 1e-10, norms)
+    if qn == 0:
+        return np.zeros(matrix.shape[0], dtype=np.float32)
+    return np.dot(matrix, q) / (qn * norms)
+
+
+def pick_partner(anchor_idx, matrix, index, band):
+    """Pick a partner row index for the anchor, preferring (a) different topic,
+    (b) different source same topic, (c) same source. Returns index or None if band empty."""
+    lo, hi = band
+    sims = _cosims(matrix[anchor_idx], matrix)
+    a = index[anchor_idx]
+    tiers = {"diff_topic": [], "diff_source": [], "same": []}
+    for j, s in enumerate(sims):
+        if j == anchor_idx:
+            continue
+        if lo <= s <= hi:
+            if index[j]["topic"] != a["topic"]:
+                tiers["diff_topic"].append((j, s))
+            elif index[j]["source"] != a["source"]:
+                tiers["diff_source"].append((j, s))
+            else:
+                tiers["same"].append((j, s))
+    for key in ("diff_topic", "diff_source", "same"):
+        if tiers[key]:
+            return max(tiers[key], key=lambda t: t[1])[0]
+    return None
+
+
 def is_duplicate(path, embedding, threshold=0.85):
     """True if `embedding` cosine >= threshold to ANY stored hypothesis (including killed)."""
     conn = _ledger_conn(path)
