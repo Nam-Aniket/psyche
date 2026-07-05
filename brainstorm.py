@@ -157,6 +157,92 @@ def _embed_signature(db_path):
         return (None, None)
 
 
+import random
+
+MIN_POOL = 50
+MIN_CHUNK_CHARS = 200
+DEDUP_THRESHOLD = 0.85
+
+
+class SparseCorpusError(Exception):
+    pass
+
+
+class NoChatModelError(Exception):
+    pass
+
+
+class IncompatibleTopicsError(Exception):
+    pass
+
+
+def _fetch_text(base_dir, topic, chunk_id):
+    found = discover_topics(base_dir)
+    conn = db.get_connection(found[topic])
+    recs = db.get_chunks_by_ids(conn, [chunk_id])
+    conn.close()
+    return recs[0]["text"] if recs else ""
+
+
+def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
+                        base_dir=None, ledger_path=None):
+    if llm is None:
+        from llm_client import LLMClient
+        llm = LLMClient()
+    if getattr(llm, "chat_model", "none") == "none":
+        raise NoChatModelError("brainstorm needs a chat model; embeddings alone can't write hypotheses.")
+
+    ledger_path = ledger_path or _ledger_path()
+    found = discover_topics(base_dir)
+    kept, skipped = select_compatible_topics(found, requested=topics)
+    if not kept:
+        raise IncompatibleTopicsError("no embedding-compatible topics to collide.")
+
+    matrix, index = build_pool(kept)
+    if matrix.shape[0] < MIN_POOL:
+        raise SparseCorpusError(f"pooled corpus has {matrix.shape[0]} chunks (< {MIN_POOL}); ingest more first.")
+
+    band = drift_band(drift)
+    results, skipped_pairs, attempts = [], 0, 0
+    max_attempts = count * 12
+    order = list(range(len(index)))
+    random.shuffle(order)
+
+    while len(results) < count and attempts < max_attempts and order:
+        attempts += 1
+        anchor = order.pop()
+        text_a = _fetch_text(base_dir, index[anchor]["topic"], index[anchor]["chunk_id"])
+        if len(text_a) < MIN_CHUNK_CHARS:
+            continue
+        p = pick_partner(anchor, matrix, index, band)
+        if p is None:
+            wlo, whi = band
+            p = pick_partner(anchor, matrix, index, (wlo - 0.05, whi + 0.05))  # widen once
+        if p is None:
+            continue
+        text_b = _fetch_text(base_dir, index[p]["topic"], index[p]["chunk_id"])
+        if len(text_b) < MIN_CHUNK_CHARS:
+            continue
+        out = collide(text_a, text_b, llm)
+        if out is None:
+            skipped_pairs += 1
+            continue
+        emb = np.asarray(llm.get_embedding(out["hypothesis"]), dtype=np.float32)
+        if is_duplicate(ledger_path, emb, DEDUP_THRESHOLD):
+            continue
+        hid = insert_hypothesis(
+            ledger_path, text=out["hypothesis"], kill_test=out["kill_test"],
+            topic_a=index[anchor]["topic"], chunk_a=index[anchor]["chunk_id"], snippet_a=text_a[:300],
+            topic_b=index[p]["topic"], chunk_b=index[p]["chunk_id"], snippet_b=text_b[:300],
+            drift=drift, embedding=emb)
+        results.append({
+            "id": hid, "hypothesis": out["hypothesis"], "kill_test": out["kill_test"], "drift": drift,
+            "source_a": {"topic": index[anchor]["topic"], "snippet": text_a[:300]},
+            "source_b": {"topic": index[p]["topic"], "snippet": text_b[:300]},
+        })
+    return results
+
+
 def _source_titles(conn):
     """chunk_id -> source title map, cheaply (no chunk text loaded)."""
     rows = conn.execute(

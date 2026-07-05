@@ -162,12 +162,16 @@ class _FakeLLM:
     def __init__(self, replies, chat_model="fake"):
         self.replies = list(replies)
         self.chat_model = chat_model
+        self._embed_seed = 0
 
     def generate_completion(self, system, prompt):
         return self.replies.pop(0)
 
     def get_embedding(self, text):
-        return [0.1, 0.2, 0.3]
+        # distinct embedding per call so dedup doesn't collapse every hypothesis
+        self._embed_seed += 1
+        rng = np.random.default_rng(self._embed_seed)
+        return rng.standard_normal(8).astype(np.float32).tolist()
 
 
 class TestCollide(unittest.TestCase):
@@ -185,6 +189,43 @@ class TestCollide(unittest.TestCase):
         llm = _FakeLLM(["not json", "still not json"])
         self.assertIsNone(brainstorm.collide("a", "b", llm))
         self.assertEqual(llm.replies, [])  # both attempts consumed
+
+
+class TestGenerate(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        # 60 chunks across two topics to clear the <50 sparse guard
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=40)
+        _make_topic_db(os.path.join(self.dir, "topic_naval.db"), n=20)
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_generates_and_stores(self):
+        llm = _FakeLLM(['{"hypothesis": "H%d", "kill_test": "T"}' % i for i in range(30)])
+        out = brainstorm.generate_hypotheses(
+            count=2, drift=0.9, topics=None, llm=llm,
+            base_dir=self.dir, ledger_path=self.ledger)
+        self.assertGreaterEqual(len(out), 1)
+        self.assertIn("hypothesis", out[0])
+        self.assertIn("source_a", out[0])
+        self.assertIn("topic", out[0]["source_a"])
+        stored = brainstorm.list_hypotheses(self.ledger)
+        self.assertGreaterEqual(len(stored), 1)
+
+    def test_sparse_corpus_refused(self):
+        small = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(small, "knowledge.db"), n=5)
+        llm = _FakeLLM([])
+        with self.assertRaises(brainstorm.SparseCorpusError):
+            brainstorm.generate_hypotheses(
+                count=1, drift=0.5, topics=None, llm=llm,
+                base_dir=small, ledger_path=os.path.join(small, "brainstorm.db"))
+
+    def test_no_chat_model_refused(self):
+        llm = _FakeLLM([], chat_model="none")
+        with self.assertRaises(brainstorm.NoChatModelError):
+            brainstorm.generate_hypotheses(
+                count=1, drift=0.5, topics=None, llm=llm,
+                base_dir=self.dir, ledger_path=self.ledger)
 
 
 if __name__ == "__main__":
