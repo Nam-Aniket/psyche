@@ -268,9 +268,13 @@ def list_hypotheses_tool(status=None):
     return json.dumps({"hypotheses": rows}, indent=2, default=str)
 
 
-def update_hypothesis_tool(hid, status=None, notes=None):
+def update_hypothesis_tool(hid, status=None, notes=None, text=None, kill_test=None):
     import brainstorm
-    brainstorm.update_hypothesis(brainstorm._ledger_path(), hid, status=status, notes=notes)
+    emb = None
+    if text:  # embed the written hypothesis so cross-run dedup works on it later
+        emb = LLMClient().get_embedding(text)
+    brainstorm.update_hypothesis(brainstorm._ledger_path(), hid, status=status, notes=notes,
+                                 text=text, kill_test=kill_test, embedding=emb)
     return json.dumps({"ok": True, "id": hid})
 
 
@@ -730,7 +734,7 @@ def main():
                         },
                         {
                             "name": "brainstorm",
-                            "description": "Collide notes from ACROSS your topics into falsifiable hypotheses (GBrain-style idea generation). Returns hypotheses with a cheap kill-test and the two source snippets that collided. Each output is a hypothesis to test against reality, not a validated idea.",
+                            "description": "Collide notes from ACROSS your topics into idea seeds (GBrain-style). Returns pairs of semantically distant notes. If an item has 'needs_hypothesis': true (Psyche has no chat model), YOU the calling model must write a single FALSIFIABLE hypothesis bridging source_a and source_b plus the cheapest real-world kill-test, then call update_hypothesis(id, text=<hypothesis>, kill_test=<test>) to save it. Every output is a hypothesis to test against reality, not a validated idea.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
@@ -763,13 +767,15 @@ def main():
                         },
                         {
                             "name": "update_hypothesis",
-                            "description": "Move a hypothesis along its lifecycle (new -> researching -> testing -> killed/survived) and/or attach research notes.",
+                            "description": "Fill in or advance a hypothesis. Use text+kill_test to write up a raw collision pair (from brainstorm with needs_hypothesis). Use status to move it along its lifecycle (new -> researching -> testing -> killed/survived) and notes for research findings.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
                                     "id": {"type": "integer", "description": "Hypothesis id"},
                                     "status": {"type": "string", "description": "New status: researching | testing | killed | survived"},
-                                    "notes": {"type": "string", "description": "Optional notes (research findings, why killed)"}
+                                    "notes": {"type": "string", "description": "Optional notes (research findings, why killed)"},
+                                    "text": {"type": "string", "description": "The falsifiable hypothesis text (when writing up a raw collision pair)"},
+                                    "kill_test": {"type": "string", "description": "The cheapest real-world test that could kill the hypothesis"}
                                 },
                                 "required": ["id"]
                             }
@@ -967,7 +973,9 @@ def main():
                         text_result = update_hypothesis_tool(
                             arguments.get("id"),
                             status=arguments.get("status"),
-                            notes=arguments.get("notes"))
+                            notes=arguments.get("notes"),
+                            text=arguments.get("text"),
+                            kill_test=arguments.get("kill_test"))
                         resp["result"] = {"content": [{"type": "text", "text": text_result}]}
                     else:
                         resp["error"] = {

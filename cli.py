@@ -121,10 +121,16 @@ def main():
         try:
             out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, llm=LLMClient())
             for h in out:
-                print(f"\n[{h['id']}] {h['hypothesis']}\n    kill-test: {h['kill_test']}"
-                      f"\n    ({h['source_a']['topic']} x {h['source_b']['topic']}, drift {h['drift']})")
+                if h.get("needs_hypothesis"):
+                    print(f"\n[{h['id']}] RAW COLLISION ({h['source_a']['topic']} x {h['source_b']['topic']}, "
+                          f"drift {h['drift']}) - write a falsifiable hypothesis bridging:"
+                          f"\n    A ({h['source_a']['topic']}): {h['source_a']['snippet'][:200]}"
+                          f"\n    B ({h['source_b']['topic']}): {h['source_b']['snippet'][:200]}")
+                else:
+                    print(f"\n[{h['id']}] {h['hypothesis']}\n    kill-test: {h['kill_test']}"
+                          f"\n    ({h['source_a']['topic']} x {h['source_b']['topic']}, drift {h['drift']})")
             if not out:
-                print("No new hypotheses this run (all deduped or band empty). Try a different --drift.")
+                print("No new pairs this run (all seen or band empty). Try a different --drift.")
         except Exception as e:
             print(f"brainstorm: {e}")
     elif subcommand == "gaps":

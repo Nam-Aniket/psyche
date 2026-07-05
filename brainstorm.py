@@ -74,11 +74,22 @@ _HYP_COLS = ["id", "text", "kill_test", "topic_a", "chunk_a", "topic_b", "chunk_
              "snippet_a", "snippet_b", "drift", "status", "notes", "created_at", "updated_at"]
 
 
+def _pair_exists(path, topic_a, chunk_a, topic_b, chunk_b):
+    """True if this collided pair (either ordering) is already in the ledger."""
+    conn = _ledger_conn(path)
+    row = conn.execute(
+        "SELECT 1 FROM hypotheses WHERE (topic_a=? AND chunk_a=? AND topic_b=? AND chunk_b=?) "
+        "OR (topic_a=? AND chunk_a=? AND topic_b=? AND chunk_b=?) LIMIT 1",
+        (topic_a, chunk_a, topic_b, chunk_b, topic_b, chunk_b, topic_a, chunk_a)).fetchone()
+    conn.close()
+    return row is not None
+
+
 def insert_hypothesis(path, *, text, kill_test, topic_a, chunk_a, snippet_a,
-                      topic_b, chunk_b, snippet_b, drift, embedding):
+                      topic_b, chunk_b, snippet_b, drift, embedding=None):
     conn = _ledger_conn(path)
     now = _now()
-    blob = np.asarray(embedding, dtype=np.float32).tobytes()
+    blob = np.asarray(embedding, dtype=np.float32).tobytes() if embedding is not None else None
     cur = conn.execute(
         """INSERT INTO hypotheses
            (text, kill_test, topic_a, chunk_a, topic_b, chunk_b, snippet_a, snippet_b,
@@ -105,13 +116,19 @@ def list_hypotheses(path, status=None):
     return rows
 
 
-def update_hypothesis(path, hid, status=None, notes=None):
+def update_hypothesis(path, hid, status=None, notes=None, text=None, kill_test=None, embedding=None):
     conn = _ledger_conn(path)
     sets, args = ["updated_at = ?"], [_now()]
     if status is not None:
         sets.append("status = ?"); args.append(status)
     if notes is not None:
         sets.append("notes = ?"); args.append(notes)
+    if text is not None:
+        sets.append("text = ?"); args.append(text)
+    if kill_test is not None:
+        sets.append("kill_test = ?"); args.append(kill_test)
+    if embedding is not None:
+        sets.append("embedding_blob = ?"); args.append(np.asarray(embedding, dtype=np.float32).tobytes())
     args.append(hid)
     conn.execute(f"UPDATE hypotheses SET {', '.join(sets)} WHERE id = ?", args)
     conn.commit()
@@ -190,8 +207,10 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
     if llm is None:
         from llm_client import LLMClient
         llm = LLMClient()
-    if getattr(llm, "chat_model", "none") == "none":
-        raise NoChatModelError("brainstorm needs a chat model; embeddings alone can't write hypotheses.")
+    # Raw-pairs mode: no chat model in Psyche, so the engine returns the collided pairs
+    # and the CALLING llm (via MCP) writes the falsifiable hypothesis. This is the C2
+    # design. If a chat model IS configured, the engine writes hypotheses itself.
+    raw_mode = getattr(llm, "chat_model", "none") == "none"
 
     ledger_path = ledger_path or _ledger_path()
     found = discover_topics(base_dir)
@@ -224,6 +243,24 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         text_b = _fetch_text(base_dir, index[p]["topic"], index[p]["chunk_id"])
         if len(text_b) < MIN_CHUNK_CHARS:
             continue
+        ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
+        tb, cb = index[p]["topic"], index[p]["chunk_id"]
+
+        if raw_mode:
+            # No chat model: hand the raw collided pair to the calling LLM to write up.
+            if _pair_exists(ledger_path, ta, ca, tb, cb):
+                continue
+            hid = insert_hypothesis(
+                ledger_path, text="(raw collision - calling LLM to write the hypothesis)",
+                kill_test=None, topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
+                topic_b=tb, chunk_b=cb, snippet_b=text_b[:300], drift=drift, embedding=None)
+            results.append({
+                "id": hid, "needs_hypothesis": True, "drift": drift,
+                "source_a": {"topic": ta, "snippet": text_a[:300]},
+                "source_b": {"topic": tb, "snippet": text_b[:300]},
+            })
+            continue
+
         out = collide(text_a, text_b, llm)
         if out is None:
             skipped_pairs += 1
@@ -233,13 +270,13 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             continue
         hid = insert_hypothesis(
             ledger_path, text=out["hypothesis"], kill_test=out["kill_test"],
-            topic_a=index[anchor]["topic"], chunk_a=index[anchor]["chunk_id"], snippet_a=text_a[:300],
-            topic_b=index[p]["topic"], chunk_b=index[p]["chunk_id"], snippet_b=text_b[:300],
+            topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
+            topic_b=tb, chunk_b=cb, snippet_b=text_b[:300],
             drift=drift, embedding=emb)
         results.append({
             "id": hid, "hypothesis": out["hypothesis"], "kill_test": out["kill_test"], "drift": drift,
-            "source_a": {"topic": index[anchor]["topic"], "snippet": text_a[:300]},
-            "source_b": {"topic": index[p]["topic"], "snippet": text_b[:300]},
+            "source_a": {"topic": ta, "snippet": text_a[:300]},
+            "source_b": {"topic": tb, "snippet": text_b[:300]},
         })
     return results
 
@@ -319,11 +356,13 @@ def build_pool(kept):
     return matrix, index
 
 
-# ponytail: band coefficients are the calibration knob. If first real runs on a given
-# embedding model put the "interesting" collisions elsewhere, tune BAND_HI/BAND_SPAN here.
-BAND_HI = 0.75      # upper edge at drift=0
-BAND_SPAN = 0.15    # band width
-BAND_SLOPE = 0.45   # how far the band slides down per unit drift
+# ponytail: band coefficients are the calibration knob, tuned to bge-small-en-v1.5 on
+# Aniket's real corpus (measured 2026-07-06: cross-topic cosine spans ~0.30-0.78, median
+# ~0.55). drift maps onto that real range: 0 -> [0.62,0.72] (mildest), 1 -> [0.32,0.42]
+# (most distant found in practice). Re-measure + retune if the embedding model changes.
+BAND_HI = 0.72      # upper edge at drift=0
+BAND_SPAN = 0.10    # band width
+BAND_SLOPE = 0.30   # how far the band slides down per unit drift
 
 
 def drift_band(drift):

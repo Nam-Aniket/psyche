@@ -126,13 +126,16 @@ class TestDedup(unittest.TestCase):
 
 class TestDriftAndPartner(unittest.TestCase):
     def test_drift_band_endpoints(self):
-        self.assertEqual(brainstorm.drift_band(0.0), (0.60, 0.75))
+        # Calibrated to bge-small-en-v1.5 on the real corpus (cross-topic cosine ~0.30-0.78).
+        lo, hi = brainstorm.drift_band(0.0)
+        self.assertAlmostEqual(lo, 0.62, places=3)
+        self.assertAlmostEqual(hi, 0.72, places=3)
         lo, hi = brainstorm.drift_band(0.5)
-        self.assertAlmostEqual(lo, 0.375, places=3)
-        self.assertAlmostEqual(hi, 0.525, places=3)
+        self.assertAlmostEqual(lo, 0.47, places=3)
+        self.assertAlmostEqual(hi, 0.57, places=3)
         lo, hi = brainstorm.drift_band(1.0)
-        self.assertAlmostEqual(lo, 0.15, places=3)
-        self.assertAlmostEqual(hi, 0.30, places=3)
+        self.assertAlmostEqual(lo, 0.32, places=3)
+        self.assertAlmostEqual(hi, 0.42, places=3)
 
     def test_partner_prefers_different_topic_in_band(self):
         # anchor at index 0 (topic default). Two in-band candidates:
@@ -253,12 +256,34 @@ class TestGenerate(unittest.TestCase):
                 count=1, drift=0.5, topics=None, llm=llm,
                 base_dir=small, ledger_path=os.path.join(small, "brainstorm.db"))
 
-    def test_no_chat_model_refused(self):
+    def test_raw_pairs_mode_when_no_chat_model(self):
+        # chat_model 'none' -> return raw collided pairs for the calling LLM to write up.
         llm = _FakeLLM([], chat_model="none")
-        with self.assertRaises(brainstorm.NoChatModelError):
-            brainstorm.generate_hypotheses(
-                count=1, drift=0.5, topics=None, llm=llm,
-                base_dir=self.dir, ledger_path=self.ledger)
+        out = brainstorm.generate_hypotheses(
+            count=2, drift=0.9, topics=None, llm=llm,
+            base_dir=self.dir, ledger_path=self.ledger)
+        self.assertGreaterEqual(len(out), 1)
+        self.assertTrue(out[0]["needs_hypothesis"])
+        self.assertNotIn("hypothesis", out[0])       # engine did NOT write one
+        self.assertIn("snippet", out[0]["source_a"])
+        # stored as a pending row with no embedding yet
+        stored = brainstorm.list_hypotheses(self.ledger)
+        self.assertGreaterEqual(len(stored), 1)
+        self.assertEqual(stored[0]["status"], "new")
+
+    def test_update_hypothesis_fills_text_and_embedding(self):
+        # calling LLM writes the hypothesis back onto a raw-pair row
+        llm = _FakeLLM([], chat_model="none")
+        out = brainstorm.generate_hypotheses(
+            count=1, drift=0.9, topics=None, llm=llm,
+            base_dir=self.dir, ledger_path=self.ledger)
+        hid = out[0]["id"]
+        brainstorm.update_hypothesis(self.ledger, hid, text="real hypothesis",
+                                     kill_test="ten cold emails",
+                                     embedding=np.array([0.3, 0.4, 0.5], dtype=np.float32))
+        row = brainstorm.list_hypotheses(self.ledger)[0]
+        self.assertEqual(row["text"], "real hypothesis")
+        self.assertEqual(row["kill_test"], "ten cold emails")
 
 
 if __name__ == "__main__":
