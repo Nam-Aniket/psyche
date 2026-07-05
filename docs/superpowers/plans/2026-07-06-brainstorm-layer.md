@@ -59,9 +59,10 @@ def _make_topic_db(path, embed_model="BAAI/bge-small-en-v1.5", dim=4, n=0):
     so cosine similarities spread across a range — otherwise every pair is 1.0 and no
     drift band would ever match.
     """
-    conn = db.get_connection(path)  # runs schema init
+    db.init_db(path)                # create schema
+    conn = db.get_connection(path)
     conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('embed_model', ?)", (embed_model,))
-    conn.execute("INSERT INTO sources (id, title, author) VALUES (1, 'src', 'a')")
+    conn.execute("INSERT INTO sources (id, title, author, checksum, created_at) VALUES (1, 'src', 'a', ?, '2026-01-01')", (path,))
     for i in range(1, n + 1):
         conn.execute("INSERT INTO chunks (id, source_id, chunk_index, text) VALUES (?,1,?,?)",
                      (i, i, f"chunk text number {i} " * 20))
@@ -870,9 +871,11 @@ class TestGaps(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()
         # Two clearly separated blobs so kmeans finds distant clusters.
-        conn = db.get_connection(os.path.join(self.dir, "knowledge.db"))
+        gpath = os.path.join(self.dir, "knowledge.db")
+        db.init_db(gpath)
+        conn = db.get_connection(gpath)
         conn.execute("INSERT OR REPLACE INTO metadata (key, value) VALUES ('embed_model','BAAI/bge-small-en-v1.5')")
-        conn.execute("INSERT INTO sources (id, title, author) VALUES (1,'s','a')")
+        conn.execute("INSERT INTO sources (id, title, author, checksum, created_at) VALUES (1,'s','a','gapchk','2026-01-01')")
         vecs = [np.array([1.0, 0.0], np.float32)] * 30 + [np.array([0.0, 1.0], np.float32)] * 30
         for i, v in enumerate(vecs, start=1):
             conn.execute("INSERT INTO chunks (id, source_id, chunk_index, text) VALUES (?,1,?,?)",
