@@ -104,5 +104,25 @@ class TestLedger(unittest.TestCase):
         self.assertEqual(brainstorm.list_hypotheses(self.ledger, status="new"), [])
 
 
+class TestDedup(unittest.TestCase):
+    def setUp(self):
+        self.ledger = os.path.join(tempfile.mkdtemp(), "brainstorm.db")
+        self.base = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        brainstorm.insert_hypothesis(
+            self.ledger, text="stored", kill_test="t",
+            topic_a="default", chunk_a=1, snippet_a="a",
+            topic_b="naval", chunk_b=1, snippet_b="b",
+            drift=0.5, embedding=self.base)
+        brainstorm.update_hypothesis(self.ledger, 1, status="killed")
+
+    def test_near_duplicate_of_killed_is_rejected(self):
+        near = np.array([0.99, 0.01, 0.0], dtype=np.float32)   # cosine ~1.0
+        self.assertTrue(brainstorm.is_duplicate(self.ledger, near, threshold=0.85))
+
+    def test_distinct_vector_is_allowed(self):
+        far = np.array([0.0, 1.0, 0.0], dtype=np.float32)      # orthogonal
+        self.assertFalse(brainstorm.is_duplicate(self.ledger, far, threshold=0.85))
+
+
 if __name__ == "__main__":
     unittest.main()

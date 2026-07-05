@@ -161,6 +161,25 @@ def build_pool(kept):
     return matrix, index
 
 
+def is_duplicate(path, embedding, threshold=0.85):
+    """True if `embedding` cosine >= threshold to ANY stored hypothesis (including killed)."""
+    conn = _ledger_conn(path)
+    rows = conn.execute("SELECT embedding_blob FROM hypotheses WHERE embedding_blob IS NOT NULL").fetchall()
+    conn.close()
+    q = np.asarray(embedding, dtype=np.float32)
+    qn = np.linalg.norm(q)
+    if qn == 0:
+        return False
+    for (blob,) in rows:
+        v = np.frombuffer(blob, dtype=np.float32)
+        vn = np.linalg.norm(v)
+        if vn == 0:
+            continue
+        if float(np.dot(q, v) / (qn * vn)) >= threshold:
+            return True
+    return False
+
+
 def select_compatible_topics(found, requested=None):
     """Keep topics sharing the majority (embed_model, dim); return (kept: dict, skipped: dict).
 
