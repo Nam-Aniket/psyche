@@ -29,7 +29,7 @@ def main():
         os.environ["DATABASE_PATH"] = resolve_db_path(f"topic_{topic_name}.db")
 
     if len(sys.argv) < 2:
-        print("Usage: psyche [setup | ingest | query | chat | build-graph | guide | checkin | goal | experiment | log-metric | review | rules | compact-memory | connect | mem | start-mcp | web] [options]")
+        print("Usage: psyche [setup | ingest | query | chat | build-graph | guide | checkin | goal | experiment | log-metric | review | rules | compact-memory | connect | mem | start-mcp | web | brainstorm | gaps] [options]")
         sys.exit(1)
         
     subcommand = sys.argv[1].lower()
@@ -109,9 +109,47 @@ def main():
     elif subcommand == "web":
         import web.server
         web.server.main()
+    elif subcommand == "brainstorm":
+        import brainstorm
+        from llm_client import LLMClient
+        drift, count, topics = 0.5, 5, None
+        args = sys.argv[1:]
+        for i, a in enumerate(args):
+            if a == "--drift" and i + 1 < len(args): drift = float(args[i + 1])
+            elif a == "--count" and i + 1 < len(args): count = int(args[i + 1])
+            elif a == "--topics" and i + 1 < len(args): topics = args[i + 1].split(",")
+        try:
+            out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, llm=LLMClient())
+            for h in out:
+                if h.get("needs_hypothesis"):
+                    print(f"\n[{h['id']}] RAW COLLISION ({h['source_a']['topic']} x {h['source_b']['topic']}, "
+                          f"drift {h['drift']}) - write a falsifiable hypothesis bridging:"
+                          f"\n    A ({h['source_a']['topic']}): {h['source_a']['snippet'][:200]}"
+                          f"\n    B ({h['source_b']['topic']}): {h['source_b']['snippet'][:200]}")
+                else:
+                    print(f"\n[{h['id']}] {h['hypothesis']}\n    kill-test: {h['kill_test']}"
+                          f"\n    ({h['source_a']['topic']} x {h['source_b']['topic']}, drift {h['drift']})")
+            if not out:
+                print("No new pairs this run (all seen or band empty). Try a different --drift.")
+        except Exception as e:
+            print(f"brainstorm: {e}")
+    elif subcommand == "gaps":
+        import brainstorm
+        top, topics = 10, None
+        args = sys.argv[1:]
+        for i, a in enumerate(args):
+            if a == "--top" and i + 1 < len(args): top = int(args[i + 1])
+            elif a == "--topics" and i + 1 < len(args): topics = args[i + 1].split(",")
+        out = brainstorm.report_gaps(top=top, topics=topics)
+        gaps = out.get("cluster_gaps", [])
+        if not gaps:
+            print(out.get("note", "No gaps found."))
+        for g in gaps:
+            a, b = g["cluster_a"], g["cluster_b"]
+            print(f"GAP  {a['topic']}/{a['source']} <-x-> {b['topic']}/{b['source']}  (sim {g['similarity']:.2f})")
     else:
         print(f"Unknown command: {subcommand}")
-        print("Available commands: setup, ingest, query, chat, build-graph, guide, checkin, goal, experiment, log-metric, review, rules, compact-memory, connect, mem, start-mcp, web")
+        print("Available commands: setup, ingest, query, chat, build-graph, guide, checkin, goal, experiment, log-metric, review, rules, compact-memory, connect, mem, start-mcp, web, brainstorm, gaps")
         sys.exit(1)
 
 if __name__ == "__main__":
