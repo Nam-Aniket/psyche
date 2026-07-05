@@ -28,12 +28,26 @@ def kmeans(embeddings: np.ndarray, num_clusters: int, max_iter: int = 20):
     norms[norms == 0] = 1.0
     norm_embeddings = embeddings / norms
     
-    # Initialize centroids randomly
+    # Initialize centroids via k-means++ (distance-weighted seeding). Uniform random
+    # init can land on (near-)identical vectors, so all centroids start equal and every
+    # point collapses into cluster 0. Weighting each new seed by squared distance from
+    # the nearest chosen seed spreads them across the data instead.
     np.random.seed(42)  # For deterministic runs
-    indices = np.random.choice(num_samples, num_clusters, replace=False)
-    centroids = norm_embeddings[indices].copy()
-    
-    labels = np.zeros(num_samples, dtype=int)
+    centroid_idx = [int(np.random.randint(num_samples))]
+    closest_sim = norm_embeddings @ norm_embeddings[centroid_idx[0]]  # unit vecs: dist² ∝ (1 - sim)
+    while len(centroid_idx) < num_clusters:
+        weights = np.clip(1.0 - closest_sim, 0.0, None)  # already-chosen/duplicate pts → weight 0
+        total = weights.sum()
+        if total == 0:
+            break  # fewer than num_clusters distinct directions; can't seed more
+        nxt = int(np.random.choice(num_samples, p=weights / total))
+        centroid_idx.append(nxt)
+        closest_sim = np.maximum(closest_sim, norm_embeddings @ norm_embeddings[nxt])
+    centroids = norm_embeddings[centroid_idx].copy()
+
+    # -1 sentinel (never equals a real 0..k-1 label) so the convergence check below
+    # can't false-break on iteration 0 (all-zeros == all-zeros) before the first update.
+    labels = np.full(num_samples, -1, dtype=int)
     for iteration in range(max_iter):
         # Cosine similarity matrix (num_samples, num_clusters)
         similarities = np.dot(norm_embeddings, centroids.T)
