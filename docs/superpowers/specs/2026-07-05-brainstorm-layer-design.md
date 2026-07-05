@@ -62,6 +62,19 @@ These are requirements, not preferences:
   distill a returned hypothesis and research it in real time. The engine
   produces the raw collision; the calling LLM refines and reality-checks it.
   No standalone reasoning model is needed inside Psyche.
+- **C5 — Cross-topic collision is the core value, not an option.** Psyche stores
+  each topic as a separate SQLite file (`knowledge.db`, `topic_naval.db`, …).
+  The valuable collisions are *across* those files — personal notes × Psyche
+  library books × a specific case × Naval × other corpora. The engine must pool
+  chunks across selected topics and actively prefer cross-topic partners. A
+  single-topic-only engine would defeat the feature's purpose. (Guarded by the
+  embedding-compatibility check in C6.)
+- **C6 — Only pool topics that share an embedding model.** Cosine similarity
+  across two DBs is meaningful *only* if both were embedded with the same model
+  and dimension. Aniket's four current DBs all use BAAI/bge-small-en-v1.5 @ 384d
+  (verified this session), so they pool cleanly today. The engine must still
+  check this at runtime and refuse to collide incompatible DBs rather than
+  produce garbage similarities.
 - **C3 — Personal-grade v1.** Built for Aniket's own discovery loop first, not
   as a polished multi-user release. The "Psyche does what GBrain does,
   local-first" positioning story comes *after* the mechanism is proven on his
@@ -95,39 +108,52 @@ stack:
 
 Wiring points (all additive):
 
-- `db.py` — add one `CREATE TABLE IF NOT EXISTS hypotheses` in the existing
-  schema-init function. No `ALTER` on any existing table.
+- **New file `~/.psyche/brainstorm.db`** — the `hypotheses` ledger lives in its
+  own DB, *not* inside any topic file. Cross-topic hypotheses belong to no
+  single topic, and a dedicated file means the topic DBs' schemas are never
+  touched (reinforces C1). Created on first `brainstorm` call.
+- `brainstorm.py` — topic discovery: glob `~/.psyche/knowledge.db` +
+  `~/.psyche/topic_*.db`, map each to a topic name (`knowledge.db` → `default`,
+  `topic_naval.db` → `naval`).
 - `mcp_server.py` — register 4 new tools alongside the current ones, same
   pattern as `search_knowledge_tool`.
 - `cli.py` — add `brainstorm` and `gaps` subcommands to the dispatcher and the
   usage string.
 
 **Confirmation of C1:** the retrieval code path (`perform_hybrid_search` and
-everything it calls) is not touched. `brainstorm.py` is a read-only consumer of
-the embeddings it already produces, plus a writer to its own new table.
+everything it calls) is not touched, and no existing topic DB schema is altered.
+`brainstorm.py` is a read-only consumer of the embeddings the topic DBs already
+contain, plus a writer to its own separate `brainstorm.db`.
 
 ---
 
 ## 4. Data model
 
-One new table. Same `embedding_blob` BLOB format as the existing `embeddings`
-table, so dedup reuses the exact serialization already in `db.py`.
+One new table, living in its own `~/.psyche/brainstorm.db`. Same
+`embedding_blob` BLOB format as the existing `embeddings` table, so dedup reuses
+the exact serialization already in `db.py`.
+
+Because collisions are cross-topic and SQLite foreign keys **cannot span
+separate database files**, provenance is stored as denormalized
+`(topic, chunk_id)` pairs plus a short **snippet of each colliding chunk**. The
+snippet makes provenance durable: even if a chunk is later deleted or
+re-ingested (changing its id), you still see what actually collided. No foreign
+keys — none are possible across files, and none are needed.
 
 ```sql
 CREATE TABLE IF NOT EXISTS hypotheses (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     text          TEXT NOT NULL,          -- the falsifiable hypothesis
     kill_test     TEXT,                   -- cheapest suggested reality test
-    chunk_a       INTEGER,                -- provenance: first collided chunk
-    chunk_b       INTEGER,                -- provenance: second collided chunk
+    topic_a       TEXT, chunk_a INTEGER,  -- provenance: first collided chunk (topic-qualified)
+    topic_b       TEXT, chunk_b INTEGER,  -- provenance: second collided chunk
+    snippet_a     TEXT, snippet_b TEXT,   -- durable copy of the collided text
     drift         REAL,                   -- drift knob value that produced it
     embedding_blob BLOB,                  -- for cross-run dedup
     status        TEXT NOT NULL DEFAULT 'new',
     notes         TEXT,                   -- freeform: research findings, why killed
     created_at    TEXT NOT NULL,
-    updated_at    TEXT NOT NULL,
-    FOREIGN KEY (chunk_a) REFERENCES chunks (id) ON DELETE SET NULL,
-    FOREIGN KEY (chunk_b) REFERENCES chunks (id) ON DELETE SET NULL
+    updated_at    TEXT NOT NULL
 );
 ```
 
@@ -149,27 +175,38 @@ new  →  researching  →  testing  →  killed
 Scoreboard becomes one query, e.g. killed-per-week or
 `count(killed) / elapsed` = cost per killed hypothesis.
 
-`chunk_*` use `ON DELETE SET NULL` (not CASCADE) deliberately: if a source is
-re-ingested and old chunks disappear, the hypothesis and its kill-verdict must
-survive — losing the provenance link is acceptable, losing the negative memory
-is not.
+Provenance durability: because the ledger is a separate file with no foreign
+keys into the topic DBs, re-ingesting a source can never delete a hypothesis.
+The `(topic, chunk_id)` link may go stale, but `snippet_a`/`snippet_b` preserve
+what collided regardless. Losing the live link is acceptable; losing the
+negative memory (a killed hypothesis) is not — and here it simply cannot happen.
 
 ---
 
 ## 5. Collision engine
 
-Function: `generate_hypotheses(db_path, count=5, drift=0.5, topic=None, llm=...)`
+Function: `generate_hypotheses(count=5, drift=0.5, topics=None, llm=...)`
+
+`topics` is a **list** of topic names (e.g. `["default", "naval", "books"]`).
+`None` = **all embedding-compatible topics** (the maximal-serendipity default,
+matching GBrain's one-brain model). This replaces the old single `topic` arg.
 
 Step by step:
 
-1. **Load** chunk ids + embeddings matrix via existing helpers. If corpus has
-   **< 50 chunks**, refuse with a clear "corpus too sparse to collide —
-   ingest more first" message. (Collisions on a tiny corpus are just noise.)
-2. **Pick anchors.** Sample random anchor chunks. Skip chunks under ~200 chars
-   (fragments make bad collision fuel). If `topic` is given, restrict anchors to
-   that topic DB (Psyche is already multi-topic).
+1. **Build the cross-topic pool.** Discover topic DBs (glob), select the
+   requested ones (or all). **Compatibility gate (C6):** read each DB's embedding
+   model + dimension from its `metadata`; keep only DBs matching the majority
+   model+dim, and if any requested topic is dropped, say so explicitly in the
+   response ("skipped `topic_x`: embedded with a different model"). Load each
+   kept DB's chunk ids + embeddings, tagging every row with its **origin topic**
+   — global identity is `(topic, chunk_id)` because chunk ids are only unique
+   within a file. Concatenate into one matrix + a parallel `(topic, chunk_id)`
+   index. If the pooled corpus has **< 50 chunks**, refuse with "corpus too
+   sparse to collide — ingest more first."
+2. **Pick anchors.** Sample random anchor chunks from the pool. Skip chunks
+   under ~200 chars (fragments make bad collision fuel).
 3. **Find a partner inside the drift band.** Vectorized cosine of the anchor
-   against all chunks, then keep candidates whose similarity falls in:
+   against the whole pool, then keep candidates whose similarity falls in:
 
    ```
    band = [0.60 - 0.45*drift,  0.75 - 0.45*drift]
@@ -179,10 +216,11 @@ Step by step:
    - drift 0.5 → band 0.375–0.525 (the sweet spot, default)
    - drift 1.0 → band 0.15–0.30  (wild, "how are these even connected")
 
-   **Prefer a partner with a different `source_id`** than the anchor — the
-   whole point is "sci-fi concept × TidyMyData call note", not two paragraphs of
-   the same doc. If the band is empty, widen once by ±0.05; still empty → skip
-   this anchor and try another.
+   **Partner preference, strongest first:** (a) a **different topic** than the
+   anchor — a Naval note × a work case is the prize collision; (b) failing that,
+   a different `source_id` within the same topic; (c) same source only as last
+   resort. The whole point is crossing corpora, not paraphrasing one doc. If the
+   band is empty, widen once by ±0.05; still empty → skip this anchor.
 
    > Note: 0.45 is a starting coefficient chosen so the band stays inside a
    > sane similarity range across drift 0–1. It is a **calibration knob**, not a
@@ -201,24 +239,31 @@ Step by step:
 5. **Dedup before showing (cross-run).** Embed the hypothesis text. Cosine
    against **all** stored hypotheses including `killed`. If ≥ **0.85** to any,
    silently drop and resample another pair. Dead ideas never resurface.
-6. **Store** survivors as `status='new'` with provenance + drift, return them to
-   the caller with the two source snippets that collided (so the calling LLM has
-   the raw material to distill/research immediately — satisfies C2).
+6. **Store** survivors as `status='new'` with topic-qualified provenance +
+   snippets + drift, return them to the caller with the two colliding snippets
+   *and their topics* (so the calling LLM has the raw material to
+   distill/research immediately — satisfies C2).
 
-Returns a list of `{id, hypothesis, kill_test, source_a, source_b, drift}`.
+Returns a list of
+`{id, hypothesis, kill_test, source_a:{topic,snippet}, source_b:{topic,snippet}, drift}`.
 
 ---
 
 ## 6. Gap reporter
 
-Function: `report_gaps(db_path, topic=None, top=10, llm=...)`
+Function: `report_gaps(topics=None, top=10, llm=...)`
 
-1. Run existing `kmeans()` over the chunk embeddings **on demand** (clusters are
-   not persisted anywhere today, and recomputing avoids stale clusters after new
-   ingests — same "recompute the view, keep the raw data" logic as GBrain's
-   compiled-truth model).
-2. Label each cluster cheaply: the source names of its most central chunks +
-   top keywords. (No LLM call needed for labels in v1; can upgrade later.)
+Operates on the same cross-topic pool as the collision engine (`topics=None` =
+all compatible topics), so a "gap" can be *between two whole topics* that never
+connect — the most useful kind.
+
+1. Run existing `kmeans()` over the pooled chunk embeddings **on demand**
+   (clusters are not persisted anywhere today, and recomputing avoids stale
+   clusters after new ingests — same "recompute the view, keep the raw data"
+   logic as GBrain's compiled-truth model).
+2. Label each cluster cheaply: the **topic + source names** of its most central
+   chunks + top keywords, so a gap reads as "your Naval cluster never touches
+   your TidyMyData-cases cluster." (No LLM call needed for labels in v1.)
 3. Rank **cluster pairs** by *lowest* cross-cluster average similarity that also
    have **zero stored hypotheses bridging them** — i.e. regions of your thinking
    that have never been connected and that you have not already tried to
@@ -239,10 +284,13 @@ Returns `{cluster_gaps: [...], isolated_concepts: [...]}`.
 
 | Tool | Args | Does |
 |---|---|---|
-| `brainstorm` | `count?`, `drift?`, `topic?` | generate + store hypotheses, return them |
-| `report_gaps` | `topic?`, `top?` | return corpus gaps |
+| `brainstorm` | `count?`, `drift?`, `topics?` | collide across topics, generate + store hypotheses |
+| `report_gaps` | `topics?`, `top?` | return cross-topic corpus gaps |
 | `list_hypotheses` | `status?` | read the ledger (filter by status) |
 | `update_hypothesis` | `id`, `status`, `notes?` | move a hypothesis along the lifecycle |
+
+`topics` accepts a list (e.g. `["default","naval"]`); omit it to collide across
+everything compatible.
 
 The calling LLM is the reasoning engine (C2): `brainstorm` hands it raw
 collisions, the LLM distills/researches, then calls `update_hypothesis` to
@@ -251,9 +299,10 @@ record the verdict. No reasoning model lives inside Psyche.
 **CLI** (thin wrappers, same functions):
 
 ```
-psyche brainstorm [--drift 0.5] [--count 5] [--topic NAME]
-psyche gaps [--top 10] [--topic NAME]
+psyche brainstorm [--drift 0.5] [--count 5] [--topics default,naval,books]
+psyche gaps [--top 10] [--topics default,naval,books]
 ```
+(omit `--topics` to use all embedding-compatible topics)
 
 ---
 
@@ -266,8 +315,12 @@ psyche gaps [--top 10] [--topic NAME]
 - **Malformed LLM JSON:** one retry with a stricter reminder; on second failure,
   skip that pair, continue the run, and note "1 pair skipped (bad output)" in
   the response. One bad collision never fails the whole run.
-- **Sparse corpus** (< 50 chunks): refuse `brainstorm` with guidance; `gaps`
-  needs at least ~2 viable clusters or it says "not enough material yet."
+- **Sparse corpus** (< 50 chunks pooled): refuse `brainstorm` with guidance;
+  `gaps` needs at least ~2 viable clusters or it says "not enough material yet."
+- **Incompatible embeddings (C6):** if requested topics were embedded with
+  different models/dimensions, keep the majority-compatible set, drop the rest,
+  and name what was skipped and why. If *no* two topics are compatible, refuse
+  with "these topics can't be collided — they use different embedding models."
 - **Empty drift band repeatedly:** after N anchor attempts with no partner,
   return however many hypotheses were made plus "corpus may be too
   homogeneous at this drift — try a lower drift."
@@ -296,11 +349,16 @@ psyche gaps [--top 10] [--topic NAME]
 deterministic vectors — no LLM calls in unit tests:
 
 - drift band math: drift 0 / 0.5 / 1.0 produce the expected similarity windows
-- different-source preference actually prefers cross-source partners
+- **cross-topic pool:** two synthetic topic DBs concatenate into one matrix with
+  correct `(topic, chunk_id)` tagging; partner preference picks the different
+  topic when one exists in-band
+- **compatibility gate:** a topic DB with a different embedding dimension is
+  dropped from the pool and reported, not silently mixed
 - dedup rejects a hypothesis embedded 0.9-similar to a stored (and to a
   `killed`) one
-- lifecycle: `update_hypothesis` transitions persist and round-trip
-- sparse-corpus guard fires under 50 chunks
+- lifecycle: `update_hypothesis` transitions persist and round-trip in
+  `brainstorm.db`
+- sparse-corpus guard fires under 50 pooled chunks
 
 Plus a **manual smoke run** against Aniket's real DB as the acceptance gate.
 
