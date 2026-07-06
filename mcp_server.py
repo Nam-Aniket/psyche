@@ -247,10 +247,10 @@ def append_memory_archival_tool(text: str, topic: str = None, author: str = "Ass
     finally:
         conn.close()
 
-def brainstorm_tool(count=5, drift=0.5, topics=None):
+def brainstorm_tool(count=5, drift=0.5, topics=None, seed=None):
     import brainstorm
     try:
-        out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics)
+        out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, seed=seed)
         return json.dumps({"hypotheses": out}, indent=2)
     except (brainstorm.NoChatModelError, brainstorm.SparseCorpusError,
             brainstorm.IncompatibleTopicsError) as e:
@@ -734,10 +734,11 @@ def main():
                         },
                         {
                             "name": "brainstorm",
-                            "description": "Collide notes from ACROSS your topics into idea seeds (GBrain-style). Returns pairs of semantically distant notes. If an item has 'needs_hypothesis': true (Psyche has no chat model), YOU the calling model must write a single FALSIFIABLE hypothesis bridging source_a and source_b plus the cheapest real-world kill-test, then call update_hypothesis(id, text=<hypothesis>, kill_test=<test>) to save it. Every output is a hypothesis to test against reality, not a validated idea.",
+                            "description": "Collide notes into idea seeds (GBrain-style). Pass a 'seed' (a topic/problem/question) to anchor one side of every collision to notes relevant to it and spark ideas about THAT topic; omit seed for undirected serendipity across everything. Returns pairs of notes. If an item has 'needs_hypothesis': true (Psyche has no chat model), YOU the calling model must write a single FALSIFIABLE hypothesis bridging source_a and source_b plus the cheapest real-world kill-test, then call update_hypothesis(id, text=<hypothesis>, kill_test=<test>) to save it. Every output is a hypothesis to test against reality, not a validated idea.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
+                                    "seed": {"type": "string", "description": "A topic, problem, or question to anchor the collisions (e.g. 'reducing AI inference cost'). Omit for undirected serendipity."},
                                     "count": {"type": "integer", "description": "How many hypotheses to generate (default 5)", "default": 5},
                                     "drift": {"type": "number", "description": "0-1 collision wildness: low=closely related notes, high=distant/surprising pairs (default 0.5)", "default": 0.5},
                                     "topics": {"type": "array", "items": {"type": "string"}, "description": "Topic names to collide across (e.g. ['default','naval']). Omit for all embedding-compatible topics."}
@@ -959,7 +960,8 @@ def main():
                         text_result = brainstorm_tool(
                             count=arguments.get("count", 5),
                             drift=arguments.get("drift", 0.5),
-                            topics=arguments.get("topics"))
+                            topics=arguments.get("topics"),
+                            seed=arguments.get("seed"))
                         resp["result"] = {"content": [{"type": "text", "text": text_result}]}
                     elif tool_name == "report_gaps":
                         text_result = report_gaps_tool(

@@ -124,6 +124,20 @@ class TestDedup(unittest.TestCase):
         self.assertFalse(brainstorm.is_duplicate(self.ledger, far, threshold=0.85))
 
 
+class TestSeed(unittest.TestCase):
+    def test_relevance_order_ranks_by_cosine_to_seed(self):
+        # seed points along axis 0; idx0 aligned, idx2 orthogonal
+        matrix = np.array([
+            [1.0, 0.0],   # idx0: aligned with seed -> most relevant
+            [0.7, 0.7],   # idx1: partial
+            [0.0, 1.0],   # idx2: orthogonal -> least relevant
+        ], dtype=np.float32)
+        seed_vec = np.array([1.0, 0.0], dtype=np.float32)
+        order = brainstorm._relevance_order(seed_vec, matrix)
+        self.assertEqual(order[0], 0)    # most relevant first
+        self.assertEqual(order[-1], 2)   # least relevant last
+
+
 class TestDriftAndPartner(unittest.TestCase):
     def test_drift_band_endpoints(self):
         # Calibrated to bge-small-en-v1.5 on the real corpus (cross-topic cosine ~0.30-0.78).
