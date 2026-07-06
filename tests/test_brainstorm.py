@@ -124,6 +124,22 @@ class TestDedup(unittest.TestCase):
         self.assertFalse(brainstorm.is_duplicate(self.ledger, far, threshold=0.85))
 
 
+class TestProse(unittest.TestCase):
+    def test_rejects_toc_and_index_like_chunks(self):
+        toc = ("Table of Contents\nSection I: Start Here\nHow I Got Here\n"
+               "Get Leads\n#1 Warm Outreach\n#2 Post Free Content")
+        index = "456 INDEX Money and prices, 296-318\nas production, 88\nGold, 40-42\nSee also Banks"
+        self.assertFalse(brainstorm._is_prose(toc))
+        self.assertFalse(brainstorm._is_prose(index))
+
+    def test_keeps_real_prose(self):
+        prose = ("If your messaging is clear, straightforward, and focused on them, with each "
+                 "communication adding value to their lives by teaching them something they did "
+                 "not know, your outreach will be welcomed with open arms.")
+        self.assertTrue(brainstorm._is_prose(prose))
+        self.assertTrue(brainstorm._is_prose("one single long line with no breaks at all here friend"))
+
+
 class TestSeed(unittest.TestCase):
     def test_relevance_order_ranks_by_cosine_to_seed(self):
         # seed points along axis 0; idx0 aligned, idx2 orthogonal

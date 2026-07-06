@@ -180,6 +180,19 @@ import random
 MIN_POOL = 50
 MIN_CHUNK_CHARS = 200
 DEDUP_THRESHOLD = 0.85
+# ponytail: below this average line length a chunk is a table-of-contents / index /
+# catalog / endnote block, not prose. Calibrated 2026-07-06 on the real corpus:
+# junk chunks measured <=22, real prose >=32 (median 64). Retune if the corpus changes.
+MIN_AVG_LINE = 30
+
+
+def _is_prose(text):
+    """Reject non-prose chunks (TOCs, indexes, catalogs) that pass the char floor but
+    are just many short lines. True = looks like real prose worth colliding."""
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if len(lines) <= 2:
+        return True  # a single block/paragraph — treat as prose
+    return sum(len(ln) for ln in lines) / len(lines) >= MIN_AVG_LINE
 
 
 class SparseCorpusError(Exception):
@@ -238,7 +251,7 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         attempts += 1
         anchor = order.pop(0)   # front = most-relevant-first when seeded; random otherwise
         text_a = _fetch_text(base_dir, index[anchor]["topic"], index[anchor]["chunk_id"])
-        if len(text_a) < MIN_CHUNK_CHARS:
+        if len(text_a) < MIN_CHUNK_CHARS or not _is_prose(text_a):
             continue
         p = pick_partner(anchor, matrix, index, band)
         if p is None:
@@ -247,7 +260,7 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         if p is None:
             continue
         text_b = _fetch_text(base_dir, index[p]["topic"], index[p]["chunk_id"])
-        if len(text_b) < MIN_CHUNK_CHARS:
+        if len(text_b) < MIN_CHUNK_CHARS or not _is_prose(text_b):
             continue
         ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
         tb, cb = index[p]["topic"], index[p]["chunk_id"]
