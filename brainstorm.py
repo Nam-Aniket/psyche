@@ -180,6 +180,19 @@ import random
 MIN_POOL = 50
 MIN_CHUNK_CHARS = 200
 DEDUP_THRESHOLD = 0.85
+# ponytail: below this average line length a chunk is a table-of-contents / index /
+# catalog / endnote block, not prose. Calibrated 2026-07-06 on the real corpus:
+# junk chunks measured <=22, real prose >=32 (median 64). Retune if the corpus changes.
+MIN_AVG_LINE = 30
+
+
+def _is_prose(text):
+    """Reject non-prose chunks (TOCs, indexes, catalogs) that pass the char floor but
+    are just many short lines. True = looks like real prose worth colliding."""
+    lines = [ln for ln in text.splitlines() if ln.strip()]
+    if len(lines) <= 2:
+        return True  # a single block/paragraph — treat as prose
+    return sum(len(ln) for ln in lines) / len(lines) >= MIN_AVG_LINE
 
 
 class SparseCorpusError(Exception):
@@ -203,7 +216,7 @@ def _fetch_text(base_dir, topic, chunk_id):
 
 
 def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
-                        base_dir=None, ledger_path=None):
+                        base_dir=None, ledger_path=None, seed=None):
     if llm is None:
         from llm_client import LLMClient
         llm = LLMClient()
@@ -225,14 +238,20 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
     band = drift_band(drift)
     results, skipped_pairs, attempts = [], 0, 0
     max_attempts = count * 12
-    order = list(range(len(index)))
-    random.shuffle(order)
+    if seed:
+        # Seeded mode: anchor each collision on notes RELEVANT to the seed topic, so
+        # one side of every pair is on-topic and the partner is the distant surprise.
+        seed_vec = llm.get_embedding(seed)
+        order = _relevance_order(seed_vec, matrix)[:max(count * 15, 50)]
+    else:
+        order = list(range(len(index)))
+        random.shuffle(order)
 
     while len(results) < count and attempts < max_attempts and order:
         attempts += 1
-        anchor = order.pop()
+        anchor = order.pop(0)   # front = most-relevant-first when seeded; random otherwise
         text_a = _fetch_text(base_dir, index[anchor]["topic"], index[anchor]["chunk_id"])
-        if len(text_a) < MIN_CHUNK_CHARS:
+        if len(text_a) < MIN_CHUNK_CHARS or not _is_prose(text_a):
             continue
         p = pick_partner(anchor, matrix, index, band)
         if p is None:
@@ -241,7 +260,7 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         if p is None:
             continue
         text_b = _fetch_text(base_dir, index[p]["topic"], index[p]["chunk_id"])
-        if len(text_b) < MIN_CHUNK_CHARS:
+        if len(text_b) < MIN_CHUNK_CHARS or not _is_prose(text_b):
             continue
         ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
         tb, cb = index[p]["topic"], index[p]["chunk_id"]
@@ -379,6 +398,12 @@ def _cosims(anchor_vec, matrix):
     if qn == 0:
         return np.zeros(matrix.shape[0], dtype=np.float32)
     return np.dot(matrix, q) / (qn * norms)
+
+
+def _relevance_order(seed_vec, matrix):
+    """Indices of pooled chunks sorted by cosine relevance to the seed (most relevant first)."""
+    sims = _cosims(np.asarray(seed_vec, dtype=np.float32), matrix)
+    return list(np.argsort(sims)[::-1])
 
 
 def pick_partner(anchor_idx, matrix, index, band):
