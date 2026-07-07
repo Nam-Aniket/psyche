@@ -913,5 +913,21 @@ def standing_fact_rows(top: int = 12, db_path: str = None, project: str = None,
             for r in rows]
 
 
+STABLE_SLOTS = 8    # byte-stable oldest slots (prompt-cache-friendly prefix)
+RECENT_SLOTS = 4    # newest-first tail; changes as decisions land
+
+
+def standing_fact_rows_split(db_path: str = None, project: str = None):
+    """(stable, tail): stable = oldest standing facts, byte-identical across
+    sessions; tail = newest standing facts not already in stable. The tail sits
+    at the END of the injected block so the stable prefix still prompt-caches."""
+    stable = standing_fact_rows(top=STABLE_SLOTS, db_path=db_path, project=project, stable=True)
+    seen = {r["id"] for r in stable}
+    recent = standing_fact_rows(top=STABLE_SLOTS + RECENT_SLOTS, db_path=db_path,
+                                project=project, stable=False)
+    tail = [r for r in recent if r["id"] not in seen][:RECENT_SLOTS]
+    return stable, tail
+
+
 def standing_facts(top: int = 12, db_path: str = None, max_chars: int = 1500) -> str:
     return format_facts(standing_fact_rows(top, db_path), max_chars=max_chars)

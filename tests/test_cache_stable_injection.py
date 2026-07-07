@@ -162,5 +162,60 @@ class TestStableBlockHash(unittest.TestCase):
         self.assertNotEqual(hc.stable_block_hash("abc"), hc.stable_block_hash("xyz"))
 
 
+def _insert_fact_at(conn, fact, ts, category="decision", project=None):
+    """Insert a standing fact with an explicit timestamp (deterministic ordering)."""
+    conn.execute(
+        "INSERT INTO atomic_memories (fact, category, project, agent_id, run_id, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (fact, category, project, "agent", "run", ts, ts),
+    )
+    conn.commit()
+    return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+class TestSplitStandingBlock(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.tmp.close()
+        self.db_path = self.tmp.name
+        db.init_db(self.db_path)
+        conn = db.get_connection(self.db_path)
+        try:
+            for i in range(15):
+                _insert_fact_at(conn, f"decision number {i} about something durable",
+                                f"2026-06-01T00:00:{i:02d}+00:00")
+        finally:
+            conn.close()
+
+    def tearDown(self):
+        try:
+            os.remove(self.db_path)
+        except OSError:
+            pass
+
+    def test_stable_slots_plus_recent_tail(self):
+        stable, tail = memzero.standing_fact_rows_split(db_path=self.db_path)
+        self.assertEqual(len(stable), memzero.STABLE_SLOTS)
+        self.assertEqual(len(tail), memzero.RECENT_SLOTS)
+        stable_ids = [r["id"] for r in stable]
+        self.assertEqual(stable_ids, sorted(stable_ids))          # oldest-first, byte-stable
+        tail_ids = {r["id"] for r in tail}
+        self.assertFalse(tail_ids & set(stable_ids))              # no overlap
+        newest_id = max(r["id"] for r in stable + tail)
+        self.assertIn(newest_id, tail_ids)                        # newest decision surfaces
+
+    def test_stable_prefix_identical_across_new_facts(self):
+        s1, _ = memzero.standing_fact_rows_split(db_path=self.db_path)
+        conn = db.get_connection(self.db_path)
+        try:
+            _insert_fact_at(conn, "decision sixteen just landed",
+                            "2026-06-01T00:01:00+00:00")
+        finally:
+            conn.close()
+        s2, t2 = memzero.standing_fact_rows_split(db_path=self.db_path)
+        self.assertEqual([r["id"] for r in s1], [r["id"] for r in s2])
+        self.assertIn("decision sixteen just landed", [r["fact"] for r in t2])
+
+
 if __name__ == "__main__":
     unittest.main()
