@@ -66,12 +66,16 @@ def _ledger_conn(path=None):
             updated_at TEXT NOT NULL
         )
     """)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(hypotheses)")}
+    if "realized_sim" not in cols:
+        conn.execute("ALTER TABLE hypotheses ADD COLUMN realized_sim REAL")
     conn.commit()
     return conn
 
 
 _HYP_COLS = ["id", "text", "kill_test", "topic_a", "chunk_a", "topic_b", "chunk_b",
-             "snippet_a", "snippet_b", "drift", "status", "notes", "created_at", "updated_at"]
+             "snippet_a", "snippet_b", "drift", "realized_sim", "status", "notes",
+             "created_at", "updated_at"]
 
 
 def _pair_exists(path, topic_a, chunk_a, topic_b, chunk_b):
@@ -86,17 +90,17 @@ def _pair_exists(path, topic_a, chunk_a, topic_b, chunk_b):
 
 
 def insert_hypothesis(path, *, text, kill_test, topic_a, chunk_a, snippet_a,
-                      topic_b, chunk_b, snippet_b, drift, embedding=None):
+                      topic_b, chunk_b, snippet_b, drift, embedding=None, realized_sim=None):
     conn = _ledger_conn(path)
     now = _now()
     blob = np.asarray(embedding, dtype=np.float32).tobytes() if embedding is not None else None
     cur = conn.execute(
         """INSERT INTO hypotheses
            (text, kill_test, topic_a, chunk_a, topic_b, chunk_b, snippet_a, snippet_b,
-            drift, embedding_blob, status, notes, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?, 'new', NULL, ?, ?)""",
+            drift, embedding_blob, status, notes, created_at, updated_at, realized_sim)
+           VALUES (?,?,?,?,?,?,?,?,?,?, 'new', NULL, ?, ?, ?)""",
         (text, kill_test, topic_a, chunk_a, topic_b, chunk_b, snippet_a, snippet_b,
-         drift, blob, now, now))
+         drift, blob, now, now, realized_sim))
     conn.commit()
     hid = cur.lastrowid
     conn.close()
@@ -259,11 +263,12 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             p = pick_partner(anchor, matrix, index, (wlo - 0.05, whi + 0.05))  # widen once
         if p is None:
             continue
-        text_b = _fetch_text(base_dir, index[p]["topic"], index[p]["chunk_id"])
+        p_idx, realized = p
+        text_b = _fetch_text(base_dir, index[p_idx]["topic"], index[p_idx]["chunk_id"])
         if len(text_b) < MIN_CHUNK_CHARS or not _is_prose(text_b):
             continue
         ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
-        tb, cb = index[p]["topic"], index[p]["chunk_id"]
+        tb, cb = index[p_idx]["topic"], index[p_idx]["chunk_id"]
 
         if raw_mode:
             # No chat model: hand the raw collided pair to the calling LLM to write up.
@@ -272,7 +277,8 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             hid = insert_hypothesis(
                 ledger_path, text="(raw collision - calling LLM to write the hypothesis)",
                 kill_test=None, topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
-                topic_b=tb, chunk_b=cb, snippet_b=text_b[:300], drift=drift, embedding=None)
+                topic_b=tb, chunk_b=cb, snippet_b=text_b[:300], drift=drift, embedding=None,
+                realized_sim=realized)
             results.append({
                 "id": hid, "needs_hypothesis": True, "drift": drift,
                 "source_a": {"topic": ta, "snippet": text_a[:300]},
@@ -291,7 +297,7 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             ledger_path, text=out["hypothesis"], kill_test=out["kill_test"],
             topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
             topic_b=tb, chunk_b=cb, snippet_b=text_b[:300],
-            drift=drift, embedding=emb)
+            drift=drift, embedding=emb, realized_sim=realized)
         results.append({
             "id": hid, "hypothesis": out["hypothesis"], "kill_test": out["kill_test"], "drift": drift,
             "source_a": {"topic": ta, "snippet": text_a[:300]},
@@ -425,7 +431,8 @@ def pick_partner(anchor_idx, matrix, index, band):
                 tiers["same"].append((j, s))
     for key in ("diff_topic", "diff_source", "same"):
         if tiers[key]:
-            return max(tiers[key], key=lambda t: t[1])[0]
+            j, s = max(tiers[key], key=lambda t: t[1])
+            return (j, float(s))
     return None
 
 

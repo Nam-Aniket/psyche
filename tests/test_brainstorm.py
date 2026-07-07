@@ -180,7 +180,7 @@ class TestDriftAndPartner(unittest.TestCase):
             {"topic": "default", "chunk_id": 2, "source": "s1"},
             {"topic": "naval",   "chunk_id": 9, "source": "s2"},
         ]
-        p = brainstorm.pick_partner(0, matrix, index, band=(0.5, 0.9))
+        p, _sim = brainstorm.pick_partner(0, matrix, index, band=(0.5, 0.9))
         self.assertEqual(index[p]["topic"], "naval")
 
     def test_partner_none_when_band_empty(self):
@@ -314,6 +314,44 @@ class TestGenerate(unittest.TestCase):
         row = brainstorm.list_hypotheses(self.ledger)[0]
         self.assertEqual(row["text"], "real hypothesis")
         self.assertEqual(row["kill_test"], "ten cold emails")
+
+
+class TestRealizedSim(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_ledger_gains_realized_sim_column(self):
+        conn = brainstorm._ledger_conn(self.ledger)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(hypotheses)")}
+        conn.close()
+        self.assertIn("realized_sim", cols)
+
+    def test_insert_and_list_roundtrip_realized_sim(self):
+        hid = brainstorm.insert_hypothesis(
+            self.ledger, text="h", kill_test="k", topic_a="a", chunk_a=1,
+            snippet_a="sa", topic_b="b", chunk_b=2, snippet_b="sb",
+            drift=0.5, embedding=None, realized_sim=0.44)
+        row = brainstorm.list_hypotheses(self.ledger)[0]
+        self.assertEqual(row["id"], hid)
+        self.assertAlmostEqual(row["realized_sim"], 0.44, places=6)
+
+
+class TestPartnerReturnsSim(unittest.TestCase):
+    def test_pick_partner_returns_index_and_similarity(self):
+        # anchor row 0; rows 1..2 inside the (0.4, 0.8) band, row 3 outside
+        matrix = np.array([[1, 0, 0, 0], [0.7, 0.7, 0, 0],
+                           [0.5, 0.86, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": "t1", "chunk_id": 1, "source": "s"},
+                 {"topic": "t2", "chunk_id": 2, "source": "s"},
+                 {"topic": "t2", "chunk_id": 3, "source": "s"},
+                 {"topic": "t2", "chunk_id": 4, "source": "s"}]
+        got = brainstorm.pick_partner(0, matrix, index, (0.4, 0.8))
+        self.assertIsNotNone(got)
+        j, sim = got
+        self.assertIn(j, (1, 2))
+        self.assertTrue(0.4 <= sim <= 0.8)
 
 
 if __name__ == "__main__":
