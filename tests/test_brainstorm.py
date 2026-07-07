@@ -495,5 +495,42 @@ class TestBanditStats(unittest.TestCase):
         self.assertAlmostEqual(brainstorm.arm_score({"wins": 0, "losses": 2}), 0.25)
 
 
+class TestBanditWiring(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=40)
+        _make_topic_db(os.path.join(self.dir, "topic_hot.db"), n=40)
+        _make_topic_db(os.path.join(self.dir, "topic_cold.db"), n=40)
+        self.ledger = os.path.join(self.dir, "b.db")
+        conn = brainstorm._ledger_conn(self.ledger)
+        for i in range(12):  # make (default, hot) the winning arm, past cold start
+            conn.execute(
+                "INSERT INTO hypotheses (text, topic_a, chunk_a, topic_b, chunk_b, snippet_a,"
+                " snippet_b, drift, status, created_at, updated_at) VALUES ('h', 'default', ?,"
+                " 'hot', ?, 's', 's', 0.5, 'survived', '2026-01-01T00:00:00+00:00',"
+                " '2026-01-01T00:00:00+00:00')",
+                (900 + i, 950 + i))
+        conn.commit()
+        conn.close()
+
+    def test_exploit_run_collides_the_winning_arm(self):
+        out = brainstorm.generate_hypotheses(count=3, drift=1.0, llm=_EndlessLLM(),
+                                             base_dir=self.dir, ledger_path=self.ledger,
+                                             epsilon=0.0)
+        self.assertTrue(out)
+        for h in out:
+            arm = frozenset((h["source_a"]["topic"], h["source_b"]["topic"]))
+            self.assertEqual(arm, frozenset(("default", "hot")))
+
+    def test_pick_partner_only_topic_filter(self):
+        matrix = np.random.default_rng(3).standard_normal((30, 8)).astype(np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": ("hot" if i % 3 == 0 else "cold"), "chunk_id": i, "source": "s"}
+                 for i in range(30)]
+        got = brainstorm.pick_partner(1, matrix, index, (-1.0, 1.0), only_topic="hot")
+        self.assertIsNotNone(got)
+        self.assertEqual(index[got[0]]["topic"], "hot")
+
+
 if __name__ == "__main__":
     unittest.main()

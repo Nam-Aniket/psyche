@@ -221,7 +221,7 @@ def _fetch_text(base_dir, topic, chunk_id):
 
 
 def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
-                        base_dir=None, ledger_path=None, seed=None):
+                        base_dir=None, ledger_path=None, seed=None, epsilon=None):
     if llm is None:
         from llm_client import LLMClient
         llm = LLMClient()
@@ -252,16 +252,41 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         order = list(range(len(index)))
         random.shuffle(order)
 
+    stats = pair_stats(ledger_path)
+    by_topic = {}
+    for i, e in enumerate(index):
+        by_topic.setdefault(e["topic"], []).append(i)
+
     while len(results) < count and attempts < max_attempts and order:
         attempts += 1
-        anchor = order.pop(0)   # front = most-relevant-first when seeded; random otherwise
+        arm = choose_topic_pair(stats, by_topic, epsilon=epsilon)
+        if arm is not None and not seed:
+            # Exploit: collide the historically most-engaging topic pair.
+            side_a, side_b = sorted(arm)
+            if random.random() < 0.5:
+                side_a, side_b = side_b, side_a
+            anchor = random.choice(by_topic[side_a])
+            partner_topic = side_b
+        else:
+            anchor = order.pop(0)   # explore: front = seed-relevance or shuffled
+            partner_topic = None
+            if seed and arm is not None:
+                # Seeded exploit: the seed owns the anchor; the bandit only
+                # nudges which topic the partner comes from.
+                cands = [a for a in stats if len(a) == 2 and index[anchor]["topic"] in a]
+                if cands:
+                    best = max(cands, key=lambda a: arm_score(stats[a]))
+                    partner_topic = next(iter(best - {index[anchor]["topic"]}), None)
         text_a = _fetch_text(base_dir, index[anchor]["topic"], index[anchor]["chunk_id"])
         if len(text_a) < MIN_CHUNK_CHARS or not _is_prose(text_a):
             continue
-        p = pick_partner(anchor, matrix, index, band)
+        p = pick_partner(anchor, matrix, index, band, only_topic=partner_topic)
         if p is None:
             wlo, whi = band
-            p = pick_partner(anchor, matrix, index, (wlo - 0.05, whi + 0.05))  # widen once
+            p = pick_partner(anchor, matrix, index, (wlo - 0.05, whi + 0.05),
+                             only_topic=partner_topic)  # widen once
+        if p is None and partner_topic is not None:
+            p = pick_partner(anchor, matrix, index, band)   # fall back to normal tiers
         if p is None:
             continue
         p_idx, realized = p
@@ -461,9 +486,11 @@ def _relevance_order(seed_vec, matrix):
     return list(np.argsort(sims)[::-1])
 
 
-def pick_partner(anchor_idx, matrix, index, band):
-    """Pick a partner row index for the anchor, preferring (a) different topic,
-    (b) different source same topic, (c) same source. Returns index or None if band empty."""
+def pick_partner(anchor_idx, matrix, index, band, only_topic=None, exclude_topic=None):
+    """Pick a partner (index, similarity) for the anchor within the band.
+    only_topic restricts candidates to one topic (bandit exploit mode);
+    exclude_topic drops a topic entirely. Tier preference: different topic,
+    then different source, then same source; uniform random within the tier."""
     lo, hi = band
     sims = _cosims(matrix[anchor_idx], matrix)
     a = index[anchor_idx]
@@ -471,8 +498,13 @@ def pick_partner(anchor_idx, matrix, index, band):
     for j, s in enumerate(sims):
         if j == anchor_idx:
             continue
+        t = index[j]["topic"]
+        if only_topic is not None and t != only_topic:
+            continue
+        if exclude_topic is not None and t == exclude_topic:
+            continue
         if lo <= s <= hi:
-            if index[j]["topic"] != a["topic"]:
+            if t != a["topic"]:
                 tiers["diff_topic"].append((j, s))
             elif index[j]["source"] != a["source"]:
                 tiers["diff_source"].append((j, s))
