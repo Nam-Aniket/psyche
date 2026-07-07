@@ -28,10 +28,9 @@ faster, commit harder to good ones").
    states what the user is exploring. Raw mode includes `seed` in the returned item
    so the calling agent writes on-topic. Update the MCP `brainstorm` tool description
    accordingly.
-5. **Embed hypotheses written via update_hypothesis.** Raw-mode hypotheses get their
-   text from the calling agent, but no embedding is ever computed, so they are
-   invisible to dedup and unscoreable. Since embeddings always run locally,
-   `update_hypothesis` (module + MCP path) embeds `text` whenever it is set.
+5. **Embed hypotheses written via update_hypothesis.** AMENDED after code check:
+   the MCP path already does this (mcp_server.update_hypothesis_tool embeds `text`
+   when set). Scope reduced to a regression test locking the behavior in.
 
 Deferred, named: stratified anchor sampling against big-book dominance (partially
 superseded by bandit topic selection below).
