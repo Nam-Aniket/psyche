@@ -180,7 +180,7 @@ class TestDriftAndPartner(unittest.TestCase):
             {"topic": "default", "chunk_id": 2, "source": "s1"},
             {"topic": "naval",   "chunk_id": 9, "source": "s2"},
         ]
-        p = brainstorm.pick_partner(0, matrix, index, band=(0.5, 0.9))
+        p, _sim = brainstorm.pick_partner(0, matrix, index, band=(0.5, 0.9))
         self.assertEqual(index[p]["topic"], "naval")
 
     def test_partner_none_when_band_empty(self):
@@ -201,10 +201,12 @@ class _FakeLLM:
         return self.replies.pop(0)
 
     def get_embedding(self, text):
-        # distinct embedding per call so dedup doesn't collapse every hypothesis
+        # distinct embedding per call so dedup doesn't collapse every hypothesis;
+        # dim matches _make_topic_db's default (4) so bridge_score can compare
+        # hypothesis vectors against pool rows, as the real shared model does.
         self._embed_seed += 1
         rng = np.random.default_rng(self._embed_seed)
-        return rng.standard_normal(8).astype(np.float32).tolist()
+        return rng.standard_normal(4).astype(np.float32).tolist()
 
 
 class TestCollide(unittest.TestCase):
@@ -314,6 +316,247 @@ class TestGenerate(unittest.TestCase):
         row = brainstorm.list_hypotheses(self.ledger)[0]
         self.assertEqual(row["text"], "real hypothesis")
         self.assertEqual(row["kill_test"], "ten cold emails")
+
+
+class _EndlessLLM(_FakeLLM):
+    """Chat-capable stub that never runs out: fresh valid JSON per collide call."""
+    def __init__(self):
+        super().__init__([], chat_model="stub")
+        self.calls = 0
+
+    def generate_completion(self, system, prompt):
+        self.calls += 1
+        return '{"hypothesis": "hypothesis number %d", "kill_test": "k"}' % self.calls
+
+
+class TestPairDedupBothModes(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=30)
+        _make_topic_db(os.path.join(self.dir, "topic_two.db"), n=30)
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_chat_mode_never_recollides_a_stored_pair(self):
+        llm = _EndlessLLM()
+        first = brainstorm.generate_hypotheses(count=3, drift=0.5, llm=llm,
+                                               base_dir=self.dir, ledger_path=self.ledger)
+        self.assertTrue(first)
+        brainstorm.generate_hypotheses(count=3, drift=0.5, llm=llm,
+                                       base_dir=self.dir, ledger_path=self.ledger)
+        stored = brainstorm.list_hypotheses(self.ledger)
+        canon = [tuple(sorted([(r["topic_a"], r["chunk_a"]), (r["topic_b"], r["chunk_b"])]))
+                 for r in stored]
+        self.assertEqual(len(canon), len(set(canon)), "same pair collided twice")
+
+
+class TestPartnerSampling(unittest.TestCase):
+    def test_partner_varies_across_runs_within_band(self):
+        matrix = np.random.default_rng(7).standard_normal((40, 8)).astype(np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": "t%d" % (i % 2), "chunk_id": i, "source": "s%d" % (i % 5)}
+                 for i in range(40)]
+        seen = set()
+        for _ in range(30):
+            got = brainstorm.pick_partner(0, matrix, index, (-1.0, 1.0))
+            self.assertIsNotNone(got)
+            seen.add(got[0])
+        self.assertGreater(len(seen), 1, "partner choice is deterministic")
+
+
+class TestSeedInPrompt(unittest.TestCase):
+    def test_collide_prompt_contains_seed(self):
+        captured = {}
+
+        class Cap(_EndlessLLM):
+            def generate_completion(self, system, prompt):
+                captured["prompt"] = prompt
+                return super().generate_completion(system, prompt)
+
+        out = brainstorm.collide("note a text", "note b text", Cap(), seed="reducing inference cost")
+        self.assertIsNotNone(out)
+        self.assertIn("reducing inference cost", captured["prompt"])
+
+    def test_raw_mode_items_carry_seed(self):
+        d = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(d, "knowledge.db"), n=30)
+        _make_topic_db(os.path.join(d, "topic_two.db"), n=30)
+
+        class Fake4(_FakeLLM):
+            def get_embedding(self, text):   # match the 4-dim pool
+                return np.random.default_rng(42).standard_normal(4).astype(np.float32).tolist()
+
+        llm = Fake4([], chat_model="none")
+        out = brainstorm.generate_hypotheses(count=2, drift=0.5, llm=llm, base_dir=d,
+                                             ledger_path=os.path.join(d, "b.db"),
+                                             seed="agent memory")
+        self.assertTrue(out)
+        for h in out:
+            self.assertEqual(h.get("seed"), "agent memory")
+
+
+class TestRealizedSim(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_ledger_gains_realized_sim_column(self):
+        conn = brainstorm._ledger_conn(self.ledger)
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(hypotheses)")}
+        conn.close()
+        self.assertIn("realized_sim", cols)
+
+    def test_insert_and_list_roundtrip_realized_sim(self):
+        hid = brainstorm.insert_hypothesis(
+            self.ledger, text="h", kill_test="k", topic_a="a", chunk_a=1,
+            snippet_a="sa", topic_b="b", chunk_b=2, snippet_b="sb",
+            drift=0.5, embedding=None, realized_sim=0.44)
+        row = brainstorm.list_hypotheses(self.ledger)[0]
+        self.assertEqual(row["id"], hid)
+        self.assertAlmostEqual(row["realized_sim"], 0.44, places=6)
+
+
+class TestUpdateEmbedsText(unittest.TestCase):
+    def test_update_hypothesis_stores_embedding_blob(self):
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hid = brainstorm.insert_hypothesis(
+            ledger, text="(raw)", kill_test=None, topic_a="a", chunk_a=1, snippet_a="s",
+            topic_b="b", chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        vec = np.ones(4, dtype=np.float32)
+        brainstorm.update_hypothesis(ledger, hid, text="real hypothesis", embedding=vec)
+        conn = sqlite3.connect(ledger)
+        blob = conn.execute("SELECT embedding_blob FROM hypotheses WHERE id=?", (hid,)).fetchone()[0]
+        conn.close()
+        self.assertIsNotNone(blob)
+        self.assertEqual(len(np.frombuffer(blob, dtype=np.float32)), 4)
+
+
+class TestPartnerReturnsSim(unittest.TestCase):
+    def test_pick_partner_returns_index_and_similarity(self):
+        # anchor row 0; rows 1..2 inside the (0.4, 0.8) band, row 3 outside
+        matrix = np.array([[1, 0, 0, 0], [0.7, 0.7, 0, 0],
+                           [0.5, 0.86, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": "t1", "chunk_id": 1, "source": "s"},
+                 {"topic": "t2", "chunk_id": 2, "source": "s"},
+                 {"topic": "t2", "chunk_id": 3, "source": "s"},
+                 {"topic": "t2", "chunk_id": 4, "source": "s"}]
+        got = brainstorm.pick_partner(0, matrix, index, (0.4, 0.8))
+        self.assertIsNotNone(got)
+        j, sim = got
+        self.assertIn(j, (1, 2))
+        self.assertTrue(0.4 <= sim <= 0.8)
+
+
+class TestBanditStats(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ledger = os.path.join(self.dir, "b.db")
+
+    def _seed(self, topic_a, topic_b, status, created_at):
+        hid = brainstorm.insert_hypothesis(
+            self.ledger, text="h", kill_test="k", topic_a=topic_a, chunk_a=1, snippet_a="s",
+            topic_b=topic_b, chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        conn = sqlite3.connect(self.ledger)
+        conn.execute("UPDATE hypotheses SET status=?, created_at=? WHERE id=?",
+                     (status, created_at, hid))
+        conn.commit()
+        conn.close()
+
+    def test_engagement_wins_and_stale_losses(self):
+        self._seed("x", "y", "killed", "2026-01-01T00:00:00+00:00")     # engaged -> win
+        self._seed("x", "y", "survived", "2026-01-01T00:00:00+00:00")   # engaged -> win
+        self._seed("x", "y", "new", "2026-01-01T00:00:00+00:00")        # stale new -> loss
+        self._seed("a", "b", "new", "2099-01-01T00:00:00+00:00")        # young new -> pending
+        stats = brainstorm.pair_stats(self.ledger)
+        xy = stats[frozenset(("x", "y"))]
+        self.assertEqual((xy["wins"], xy["losses"]), (2, 1))
+        ab = stats.get(frozenset(("a", "b")), {"wins": 0, "losses": 0})
+        self.assertEqual((ab["wins"], ab["losses"]), (0, 0))
+
+    def test_choose_pair_exploits_best_arm_and_respects_cold_start(self):
+        import random as _r
+        for _ in range(6):
+            self._seed("x", "y", "survived", "2026-01-01T00:00:00+00:00")
+        for _ in range(6):
+            self._seed("a", "b", "new", "2026-01-01T00:00:00+00:00")
+        stats = brainstorm.pair_stats(self.ledger)
+        rng = _r.Random(1)
+        # epsilon=0 -> always exploit -> best arm is (x, y)
+        arm = brainstorm.choose_topic_pair(stats, ["x", "y", "a", "b"], rng=rng, epsilon=0.0)
+        self.assertEqual(arm, frozenset(("x", "y")))
+        # cold start: fewer decided than MIN_DECIDED -> None (pure explore)
+        cold = {frozenset(("x", "y")): {"wins": 1, "losses": 0}}
+        self.assertIsNone(brainstorm.choose_topic_pair(cold, ["x", "y"], rng=rng, epsilon=0.0))
+        # epsilon=1 -> always explore
+        self.assertIsNone(brainstorm.choose_topic_pair(stats, ["x", "y", "a", "b"], rng=rng, epsilon=1.0))
+
+    def test_arm_score_laplace_smoothing(self):
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 0, "losses": 0}), 0.5)
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 1, "losses": 0}), 2 / 3)
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 0, "losses": 2}), 0.25)
+
+
+class TestBanditWiring(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=40)
+        _make_topic_db(os.path.join(self.dir, "topic_hot.db"), n=40)
+        _make_topic_db(os.path.join(self.dir, "topic_cold.db"), n=40)
+        self.ledger = os.path.join(self.dir, "b.db")
+        conn = brainstorm._ledger_conn(self.ledger)
+        for i in range(12):  # make (default, hot) the winning arm, past cold start
+            conn.execute(
+                "INSERT INTO hypotheses (text, topic_a, chunk_a, topic_b, chunk_b, snippet_a,"
+                " snippet_b, drift, status, created_at, updated_at) VALUES ('h', 'default', ?,"
+                " 'hot', ?, 's', 's', 0.5, 'survived', '2026-01-01T00:00:00+00:00',"
+                " '2026-01-01T00:00:00+00:00')",
+                (900 + i, 950 + i))
+        conn.commit()
+        conn.close()
+
+    def test_exploit_run_collides_the_winning_arm(self):
+        out = brainstorm.generate_hypotheses(count=3, drift=1.0, llm=_EndlessLLM(),
+                                             base_dir=self.dir, ledger_path=self.ledger,
+                                             epsilon=0.0)
+        self.assertTrue(out)
+        for h in out:
+            arm = frozenset((h["source_a"]["topic"], h["source_b"]["topic"]))
+            self.assertEqual(arm, frozenset(("default", "hot")))
+
+    def test_pick_partner_only_topic_filter(self):
+        matrix = np.random.default_rng(3).standard_normal((30, 8)).astype(np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": ("hot" if i % 3 == 0 else "cold"), "chunk_id": i, "source": "s"}
+                 for i in range(30)]
+        got = brainstorm.pick_partner(1, matrix, index, (-1.0, 1.0), only_topic="hot")
+        self.assertIsNotNone(got)
+        self.assertEqual(index[got[0]]["topic"], "hot")
+
+
+class TestBridgeScore(unittest.TestCase):
+    def test_paraphrase_of_parent_is_flagged(self):
+        a = np.array([1, 0, 0, 0], dtype=np.float32)
+        b = np.array([0, 1, 0, 0], dtype=np.float32)
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hyp_near_a = np.array([0.99, 0.1, 0, 0], dtype=np.float32)
+        s = brainstorm.bridge_score(hyp_near_a, a, b, ledger)
+        self.assertTrue(s["paraphrase"])
+        bridge = np.array([0.7, 0.7, 0, 0], dtype=np.float32)
+        s2 = brainstorm.bridge_score(bridge, a, b, ledger)
+        self.assertFalse(s2["paraphrase"])
+        self.assertGreater(s2["balance"], s["balance"])
+
+    def test_results_sorted_best_first(self):
+        d = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(d, "knowledge.db"), n=40)
+        _make_topic_db(os.path.join(d, "topic_two.db"), n=40)
+        out = brainstorm.generate_hypotheses(count=4, drift=0.5, llm=_EndlessLLM(),
+                                             base_dir=d, ledger_path=os.path.join(d, "b.db"))
+        self.assertTrue(out)
+        scores = [h["score"] for h in out]
+        self.assertEqual(scores, sorted(scores, reverse=True))
 
 
 if __name__ == "__main__":
