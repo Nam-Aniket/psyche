@@ -247,10 +247,11 @@ def append_memory_archival_tool(text: str, topic: str = None, author: str = "Ass
     finally:
         conn.close()
 
-def brainstorm_tool(count=5, drift=0.5, topics=None, seed=None):
+def brainstorm_tool(count=5, drift=0.5, topics=None, seed=None, include_memories=True):
     import brainstorm
     try:
-        out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, seed=seed)
+        out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, seed=seed,
+                                             include_memories=include_memories)
         return json.dumps({"hypotheses": out}, indent=2)
     except (brainstorm.NoChatModelError, brainstorm.SparseCorpusError,
             brainstorm.IncompatibleTopicsError) as e:
@@ -741,7 +742,8 @@ def main():
                                     "seed": {"type": "string", "description": "A topic, problem, or question to anchor the collisions (e.g. 'reducing AI inference cost'). Omit for undirected serendipity."},
                                     "count": {"type": "integer", "description": "How many hypotheses to generate (default 5)", "default": 5},
                                     "drift": {"type": "number", "description": "0-1 collision wildness: low=closely related notes, high=distant/surprising pairs (default 0.5)", "default": 0.5},
-                                    "topics": {"type": "array", "items": {"type": "string"}, "description": "Topic names to collide across (e.g. ['default','naval']). Omit for all embedding-compatible topics."}
+                                    "topics": {"type": "array", "items": {"type": "string"}, "description": "Topic names to collide across (e.g. ['default','naval']). Omit for all embedding-compatible topics."},
+                                    "include_memories": {"type": "boolean", "default": True, "description": "Also collide stored atomic memories (your durable facts/lessons) with book/doc chunks (default true)."}
                                 }
                             }
                         },
@@ -961,7 +963,8 @@ def main():
                             count=arguments.get("count", 5),
                             drift=arguments.get("drift", 0.5),
                             topics=arguments.get("topics"),
-                            seed=arguments.get("seed"))
+                            seed=arguments.get("seed"),
+                            include_memories=arguments.get("include_memories", True))
                         resp["result"] = {"content": [{"type": "text", "text": text_result}]}
                     elif tool_name == "report_gaps":
                         text_result = report_gaps_tool(

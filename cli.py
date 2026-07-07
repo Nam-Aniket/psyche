@@ -112,15 +112,17 @@ def main():
     elif subcommand == "brainstorm":
         import brainstorm
         from llm_client import LLMClient
-        drift, count, topics, seed = 0.5, 5, None, None
+        drift, count, topics, seed, include_memories = 0.5, 5, None, None, True
         args = sys.argv[1:]
         for i, a in enumerate(args):
             if a == "--drift" and i + 1 < len(args): drift = float(args[i + 1])
             elif a == "--count" and i + 1 < len(args): count = int(args[i + 1])
             elif a == "--topics" and i + 1 < len(args): topics = args[i + 1].split(",")
             elif a == "--seed" and i + 1 < len(args): seed = args[i + 1]
+            elif a == "--no-memories": include_memories = False
         try:
-            out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, seed=seed, llm=LLMClient())
+            out = brainstorm.generate_hypotheses(count=count, drift=drift, topics=topics, seed=seed,
+                                                 include_memories=include_memories, llm=LLMClient())
             for h in out:
                 if h.get("needs_hypothesis"):
                     print(f"\n[{h['id']}] RAW COLLISION ({h['source_a']['topic']} x {h['source_b']['topic']}, "
