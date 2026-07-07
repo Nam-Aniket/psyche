@@ -201,10 +201,12 @@ class _FakeLLM:
         return self.replies.pop(0)
 
     def get_embedding(self, text):
-        # distinct embedding per call so dedup doesn't collapse every hypothesis
+        # distinct embedding per call so dedup doesn't collapse every hypothesis;
+        # dim matches _make_topic_db's default (4) so bridge_score can compare
+        # hypothesis vectors against pool rows, as the real shared model does.
         self._embed_seed += 1
         rng = np.random.default_rng(self._embed_seed)
-        return rng.standard_normal(8).astype(np.float32).tolist()
+        return rng.standard_normal(4).astype(np.float32).tolist()
 
 
 class TestCollide(unittest.TestCase):
@@ -530,6 +532,31 @@ class TestBanditWiring(unittest.TestCase):
         got = brainstorm.pick_partner(1, matrix, index, (-1.0, 1.0), only_topic="hot")
         self.assertIsNotNone(got)
         self.assertEqual(index[got[0]]["topic"], "hot")
+
+
+class TestBridgeScore(unittest.TestCase):
+    def test_paraphrase_of_parent_is_flagged(self):
+        a = np.array([1, 0, 0, 0], dtype=np.float32)
+        b = np.array([0, 1, 0, 0], dtype=np.float32)
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hyp_near_a = np.array([0.99, 0.1, 0, 0], dtype=np.float32)
+        s = brainstorm.bridge_score(hyp_near_a, a, b, ledger)
+        self.assertTrue(s["paraphrase"])
+        bridge = np.array([0.7, 0.7, 0, 0], dtype=np.float32)
+        s2 = brainstorm.bridge_score(bridge, a, b, ledger)
+        self.assertFalse(s2["paraphrase"])
+        self.assertGreater(s2["balance"], s["balance"])
+
+    def test_results_sorted_best_first(self):
+        d = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(d, "knowledge.db"), n=40)
+        _make_topic_db(os.path.join(d, "topic_two.db"), n=40)
+        out = brainstorm.generate_hypotheses(count=4, drift=0.5, llm=_EndlessLLM(),
+                                             base_dir=d, ledger_path=os.path.join(d, "b.db"))
+        self.assertTrue(out)
+        scores = [h["score"] for h in out]
+        self.assertEqual(scores, sorted(scores, reverse=True))
 
 
 if __name__ == "__main__":

@@ -322,16 +322,19 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
         emb = np.asarray(llm.get_embedding(out["hypothesis"]), dtype=np.float32)
         if is_duplicate(ledger_path, emb, DEDUP_THRESHOLD):
             continue
+        bridge = bridge_score(emb, matrix[anchor], matrix[p_idx], ledger_path)
         hid = insert_hypothesis(
             ledger_path, text=out["hypothesis"], kill_test=out["kill_test"],
             topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
             topic_b=tb, chunk_b=cb, snippet_b=text_b[:300],
             drift=drift, embedding=emb, realized_sim=realized)
         results.append({
-            "id": hid, "hypothesis": out["hypothesis"], "kill_test": out["kill_test"], "drift": drift,
+            "id": hid, "hypothesis": out["hypothesis"], "kill_test": out["kill_test"],
+            "drift": drift, "realized_sim": realized, **bridge,
             "source_a": {"topic": ta, "snippet": text_a[:300]},
             "source_b": {"topic": tb, "snippet": text_b[:300]},
         })
+    results.sort(key=lambda h: h.get("score", 0.0), reverse=True)
     return results
 
 
@@ -517,23 +520,49 @@ def pick_partner(anchor_idx, matrix, index, band, only_topic=None, exclude_topic
     return None
 
 
-def is_duplicate(path, embedding, threshold=0.85):
-    """True if `embedding` cosine >= threshold to ANY stored hypothesis (including killed)."""
+def max_ledger_similarity(path, embedding):
+    """Highest cosine between `embedding` and any stored hypothesis (0.0 if none)."""
     conn = _ledger_conn(path)
     rows = conn.execute("SELECT embedding_blob FROM hypotheses WHERE embedding_blob IS NOT NULL").fetchall()
     conn.close()
     q = np.asarray(embedding, dtype=np.float32)
     qn = np.linalg.norm(q)
     if qn == 0:
-        return False
+        return 0.0
+    best = 0.0
     for (blob,) in rows:
         v = np.frombuffer(blob, dtype=np.float32)
         vn = np.linalg.norm(v)
         if vn == 0:
             continue
-        if float(np.dot(q, v) / (qn * vn)) >= threshold:
-            return True
-    return False
+        best = max(best, float(np.dot(q, v) / (qn * vn)))
+    return best
+
+
+def is_duplicate(path, embedding, threshold=0.85):
+    """True if `embedding` cosine >= threshold to ANY stored hypothesis (including killed)."""
+    return max_ledger_similarity(path, embedding) >= threshold
+
+
+PARAPHRASE_SIM = 0.92   # ponytail: hypothesis this close to a parent is a restatement
+
+
+def _cos(u, v):
+    un, vn = np.linalg.norm(u), np.linalg.norm(v)
+    if un == 0 or vn == 0:
+        return 0.0
+    return float(np.dot(u, v) / (un * vn))
+
+
+def bridge_score(hyp_vec, vec_a, vec_b, ledger_path):
+    """Score a hypothesis: balance (sits between its parents, not on one),
+    novelty (far from everything stored). paraphrase flags a restatement."""
+    ca_, cb_ = _cos(hyp_vec, vec_a), _cos(hyp_vec, vec_b)
+    balance = 1.0 - abs(ca_ - cb_)
+    novelty = 1.0 - max_ledger_similarity(ledger_path, hyp_vec)
+    return {"balance": round(balance, 3), "novelty": round(novelty, 3),
+            "paraphrase": max(ca_, cb_) >= PARAPHRASE_SIM,
+            "score": round((balance + novelty) / 2.0, 3)}
 
 
 def select_compatible_topics(found, requested=None):
