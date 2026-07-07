@@ -217,5 +217,41 @@ class TestSplitStandingBlock(unittest.TestCase):
         self.assertIn("decision sixteen just landed", [r["fact"] for r in t2])
 
 
+class TestOpenLoops(unittest.TestCase):
+    def test_open_loops_renders_active_items_under_cap(self):
+        import brainstorm
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hid = brainstorm.insert_hypothesis(
+            ledger, text="testing this bold idea", kill_test="k", topic_a="a", chunk_a=1,
+            snippet_a="s", topic_b="b", chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        brainstorm.update_hypothesis(ledger, hid, status="testing")
+        out = psyche_session_start.open_loops(ledger_path=ledger, knowledge_db=None)
+        self.assertIn("testing this bold idea", out)
+        self.assertLessEqual(len(out), 400)
+
+    def test_open_loops_empty_when_nothing_active(self):
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        out = psyche_session_start.open_loops(ledger_path=os.path.join(d, "b.db"),
+                                              knowledge_db=None)
+        self.assertEqual(out, "")
+
+    def test_open_loops_includes_active_experiments(self):
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        kdb = os.path.join(d, "knowledge.db")
+        db.init_db(kdb)
+        conn = db.get_connection(kdb)
+        conn.execute("INSERT INTO experiments (title, status, created_at) "
+                     "VALUES ('cold email experiment', 'active', '2026-07-01')")
+        conn.commit()
+        conn.close()
+        out = psyche_session_start.open_loops(ledger_path=os.path.join(d, "b.db"),
+                                              knowledge_db=kdb)
+        self.assertIn("cold email experiment", out)
+
+
 if __name__ == "__main__":
     unittest.main()
