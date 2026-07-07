@@ -413,6 +413,22 @@ class TestRealizedSim(unittest.TestCase):
         self.assertAlmostEqual(row["realized_sim"], 0.44, places=6)
 
 
+class TestUpdateEmbedsText(unittest.TestCase):
+    def test_update_hypothesis_stores_embedding_blob(self):
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hid = brainstorm.insert_hypothesis(
+            ledger, text="(raw)", kill_test=None, topic_a="a", chunk_a=1, snippet_a="s",
+            topic_b="b", chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        vec = np.ones(4, dtype=np.float32)
+        brainstorm.update_hypothesis(ledger, hid, text="real hypothesis", embedding=vec)
+        conn = sqlite3.connect(ledger)
+        blob = conn.execute("SELECT embedding_blob FROM hypotheses WHERE id=?", (hid,)).fetchone()[0]
+        conn.close()
+        self.assertIsNotNone(blob)
+        self.assertEqual(len(np.frombuffer(blob, dtype=np.float32)), 4)
+
+
 class TestPartnerReturnsSim(unittest.TestCase):
     def test_pick_partner_returns_index_and_similarity(self):
         # anchor row 0; rows 1..2 inside the (0.4, 0.8) band, row 3 outside
