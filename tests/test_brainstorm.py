@@ -446,5 +446,54 @@ class TestPartnerReturnsSim(unittest.TestCase):
         self.assertTrue(0.4 <= sim <= 0.8)
 
 
+class TestBanditStats(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.ledger = os.path.join(self.dir, "b.db")
+
+    def _seed(self, topic_a, topic_b, status, created_at):
+        hid = brainstorm.insert_hypothesis(
+            self.ledger, text="h", kill_test="k", topic_a=topic_a, chunk_a=1, snippet_a="s",
+            topic_b=topic_b, chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        conn = sqlite3.connect(self.ledger)
+        conn.execute("UPDATE hypotheses SET status=?, created_at=? WHERE id=?",
+                     (status, created_at, hid))
+        conn.commit()
+        conn.close()
+
+    def test_engagement_wins_and_stale_losses(self):
+        self._seed("x", "y", "killed", "2026-01-01T00:00:00+00:00")     # engaged -> win
+        self._seed("x", "y", "survived", "2026-01-01T00:00:00+00:00")   # engaged -> win
+        self._seed("x", "y", "new", "2026-01-01T00:00:00+00:00")        # stale new -> loss
+        self._seed("a", "b", "new", "2099-01-01T00:00:00+00:00")        # young new -> pending
+        stats = brainstorm.pair_stats(self.ledger)
+        xy = stats[frozenset(("x", "y"))]
+        self.assertEqual((xy["wins"], xy["losses"]), (2, 1))
+        ab = stats.get(frozenset(("a", "b")), {"wins": 0, "losses": 0})
+        self.assertEqual((ab["wins"], ab["losses"]), (0, 0))
+
+    def test_choose_pair_exploits_best_arm_and_respects_cold_start(self):
+        import random as _r
+        for _ in range(6):
+            self._seed("x", "y", "survived", "2026-01-01T00:00:00+00:00")
+        for _ in range(6):
+            self._seed("a", "b", "new", "2026-01-01T00:00:00+00:00")
+        stats = brainstorm.pair_stats(self.ledger)
+        rng = _r.Random(1)
+        # epsilon=0 -> always exploit -> best arm is (x, y)
+        arm = brainstorm.choose_topic_pair(stats, ["x", "y", "a", "b"], rng=rng, epsilon=0.0)
+        self.assertEqual(arm, frozenset(("x", "y")))
+        # cold start: fewer decided than MIN_DECIDED -> None (pure explore)
+        cold = {frozenset(("x", "y")): {"wins": 1, "losses": 0}}
+        self.assertIsNone(brainstorm.choose_topic_pair(cold, ["x", "y"], rng=rng, epsilon=0.0))
+        # epsilon=1 -> always explore
+        self.assertIsNone(brainstorm.choose_topic_pair(stats, ["x", "y", "a", "b"], rng=rng, epsilon=1.0))
+
+    def test_arm_score_laplace_smoothing(self):
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 0, "losses": 0}), 0.5)
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 1, "losses": 0}), 2 / 3)
+        self.assertAlmostEqual(brainstorm.arm_score({"wins": 0, "losses": 2}), 0.25)
+
+
 if __name__ == "__main__":
     unittest.main()

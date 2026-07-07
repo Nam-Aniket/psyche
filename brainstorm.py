@@ -400,6 +400,51 @@ def drift_band(drift):
     return (hi - BAND_SPAN, hi)
 
 
+# ponytail: bandit knobs, all retunable from real ledger data once verdicts flow.
+EPSILON = 0.3        # explore share
+IGNORE_DAYS = 14     # a 'new' older than this counts as ignored (a loss)
+MIN_DECIDED = 10     # below this many decided rows, run pure explore
+
+
+def pair_stats(ledger_path, now=None):
+    """Engagement stats per unordered topic pair, straight from the ledger.
+    Win = status left 'new' (a clean kill is the system working). Loss = still
+    'new' and older than IGNORE_DAYS. Young 'new' rows count as neither."""
+    from datetime import datetime, timedelta, timezone
+    now = now or datetime.now(timezone.utc)
+    cutoff = (now - timedelta(days=IGNORE_DAYS)).isoformat()
+    conn = _ledger_conn(ledger_path)
+    rows = conn.execute("SELECT topic_a, topic_b, status, created_at FROM hypotheses").fetchall()
+    conn.close()
+    stats = {}
+    for ta, tb, status, created in rows:
+        d = stats.setdefault(frozenset((ta, tb)), {"wins": 0, "losses": 0})
+        if status != "new":
+            d["wins"] += 1
+        elif (created or "") < cutoff:
+            d["losses"] += 1
+    return stats
+
+
+def arm_score(d):
+    """Laplace-smoothed engagement rate: unseen arms score 0.5."""
+    return (d["wins"] + 1) / (d["wins"] + d["losses"] + 2)
+
+
+def choose_topic_pair(stats, topics, rng=random, epsilon=None):
+    """Epsilon-greedy over cross-topic arms. None = explore (caller keeps
+    today's random behavior). Only arms with both topics in the pool count."""
+    epsilon = EPSILON if epsilon is None else epsilon
+    decided = sum(d["wins"] + d["losses"] for d in stats.values())
+    if decided < MIN_DECIDED or rng.random() < epsilon:
+        return None
+    topics = set(topics)
+    arms = [a for a in stats if len(a) == 2 and a <= topics]
+    if not arms:
+        return None
+    return max(arms, key=lambda a: arm_score(stats[a]))
+
+
 def _cosims(anchor_vec, matrix):
     q = anchor_vec
     qn = np.linalg.norm(q)
