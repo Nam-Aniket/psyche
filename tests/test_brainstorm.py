@@ -361,6 +361,37 @@ class TestPartnerSampling(unittest.TestCase):
         self.assertGreater(len(seen), 1, "partner choice is deterministic")
 
 
+class TestSeedInPrompt(unittest.TestCase):
+    def test_collide_prompt_contains_seed(self):
+        captured = {}
+
+        class Cap(_EndlessLLM):
+            def generate_completion(self, system, prompt):
+                captured["prompt"] = prompt
+                return super().generate_completion(system, prompt)
+
+        out = brainstorm.collide("note a text", "note b text", Cap(), seed="reducing inference cost")
+        self.assertIsNotNone(out)
+        self.assertIn("reducing inference cost", captured["prompt"])
+
+    def test_raw_mode_items_carry_seed(self):
+        d = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(d, "knowledge.db"), n=30)
+        _make_topic_db(os.path.join(d, "topic_two.db"), n=30)
+
+        class Fake4(_FakeLLM):
+            def get_embedding(self, text):   # match the 4-dim pool
+                return np.random.default_rng(42).standard_normal(4).astype(np.float32).tolist()
+
+        llm = Fake4([], chat_model="none")
+        out = brainstorm.generate_hypotheses(count=2, drift=0.5, llm=llm, base_dir=d,
+                                             ledger_path=os.path.join(d, "b.db"),
+                                             seed="agent memory")
+        self.assertTrue(out)
+        for h in out:
+            self.assertEqual(h.get("seed"), "agent memory")
+
+
 class TestRealizedSim(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()

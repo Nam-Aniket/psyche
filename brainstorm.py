@@ -24,10 +24,11 @@ _COLLIDE_SYSTEM = (
 )
 
 
-def collide(text_a, text_b, llm):
+def collide(text_a, text_b, llm, seed=None):
     """Return {'hypothesis','kill_test'} bridging the two texts, or None after one retry."""
     from build_graph import clean_json_text
-    prompt = f"NOTE A:\n{text_a}\n\nNOTE B:\n{text_b}"
+    lead = f"THE USER IS EXPLORING: {seed}\nThe hypothesis must be relevant to that exploration.\n\n" if seed else ""
+    prompt = f"{lead}NOTE A:\n{text_a}\n\nNOTE B:\n{text_b}"
     for _ in range(2):
         raw = llm.generate_completion(_COLLIDE_SYSTEM, prompt)
         try:
@@ -279,14 +280,17 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
                 kill_test=None, topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
                 topic_b=tb, chunk_b=cb, snippet_b=text_b[:300], drift=drift, embedding=None,
                 realized_sim=realized)
-            results.append({
+            item = {
                 "id": hid, "needs_hypothesis": True, "drift": drift,
                 "source_a": {"topic": ta, "snippet": text_a[:300]},
                 "source_b": {"topic": tb, "snippet": text_b[:300]},
-            })
+            }
+            if seed:
+                item["seed"] = seed
+            results.append(item)
             continue
 
-        out = collide(text_a, text_b, llm)
+        out = collide(text_a, text_b, llm, seed=seed)
         if out is None:
             skipped_pairs += 1
             continue

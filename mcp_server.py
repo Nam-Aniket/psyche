@@ -734,7 +734,7 @@ def main():
                         },
                         {
                             "name": "brainstorm",
-                            "description": "Collide notes into idea seeds (GBrain-style). Pass a 'seed' (a topic/problem/question) to anchor one side of every collision to notes relevant to it and spark ideas about THAT topic; omit seed for undirected serendipity across everything. Returns pairs of notes. If an item has 'needs_hypothesis': true (Psyche has no chat model), YOU the calling model must write a single FALSIFIABLE hypothesis bridging source_a and source_b plus the cheapest real-world kill-test, then call update_hypothesis(id, text=<hypothesis>, kill_test=<test>) to save it. Every output is a hypothesis to test against reality, not a validated idea.",
+                            "description": "Collide notes into idea seeds (GBrain-style). Pass a 'seed' (a topic/problem/question) to anchor one side of every collision to notes relevant to it and spark ideas about THAT topic (seeded items echo the seed so you write the hypothesis about it); omit seed for undirected serendipity across everything. Returns pairs of notes. If an item has 'needs_hypothesis': true (Psyche has no chat model), YOU the calling model must write a single FALSIFIABLE hypothesis bridging source_a and source_b plus the cheapest real-world kill-test, then call update_hypothesis(id, text=<hypothesis>, kill_test=<test>) to save it. Every output is a hypothesis to test against reality, not a validated idea.",
                             "inputSchema": {
                                 "type": "object",
                                 "properties": {
