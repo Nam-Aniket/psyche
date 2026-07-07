@@ -316,6 +316,51 @@ class TestGenerate(unittest.TestCase):
         self.assertEqual(row["kill_test"], "ten cold emails")
 
 
+class _EndlessLLM(_FakeLLM):
+    """Chat-capable stub that never runs out: fresh valid JSON per collide call."""
+    def __init__(self):
+        super().__init__([], chat_model="stub")
+        self.calls = 0
+
+    def generate_completion(self, system, prompt):
+        self.calls += 1
+        return '{"hypothesis": "hypothesis number %d", "kill_test": "k"}' % self.calls
+
+
+class TestPairDedupBothModes(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=30)
+        _make_topic_db(os.path.join(self.dir, "topic_two.db"), n=30)
+        self.ledger = os.path.join(self.dir, "brainstorm.db")
+
+    def test_chat_mode_never_recollides_a_stored_pair(self):
+        llm = _EndlessLLM()
+        first = brainstorm.generate_hypotheses(count=3, drift=0.5, llm=llm,
+                                               base_dir=self.dir, ledger_path=self.ledger)
+        self.assertTrue(first)
+        brainstorm.generate_hypotheses(count=3, drift=0.5, llm=llm,
+                                       base_dir=self.dir, ledger_path=self.ledger)
+        stored = brainstorm.list_hypotheses(self.ledger)
+        canon = [tuple(sorted([(r["topic_a"], r["chunk_a"]), (r["topic_b"], r["chunk_b"])]))
+                 for r in stored]
+        self.assertEqual(len(canon), len(set(canon)), "same pair collided twice")
+
+
+class TestPartnerSampling(unittest.TestCase):
+    def test_partner_varies_across_runs_within_band(self):
+        matrix = np.random.default_rng(7).standard_normal((40, 8)).astype(np.float32)
+        matrix /= np.linalg.norm(matrix, axis=1, keepdims=True)
+        index = [{"topic": "t%d" % (i % 2), "chunk_id": i, "source": "s%d" % (i % 5)}
+                 for i in range(40)]
+        seen = set()
+        for _ in range(30):
+            got = brainstorm.pick_partner(0, matrix, index, (-1.0, 1.0))
+            self.assertIsNotNone(got)
+            seen.add(got[0])
+        self.assertGreater(len(seen), 1, "partner choice is deterministic")
+
+
 class TestRealizedSim(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()

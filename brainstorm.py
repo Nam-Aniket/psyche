@@ -269,11 +269,11 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
             continue
         ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
         tb, cb = index[p_idx]["topic"], index[p_idx]["chunk_id"]
+        if _pair_exists(ledger_path, ta, ca, tb, cb):
+            continue
 
         if raw_mode:
             # No chat model: hand the raw collided pair to the calling LLM to write up.
-            if _pair_exists(ledger_path, ta, ca, tb, cb):
-                continue
             hid = insert_hypothesis(
                 ledger_path, text="(raw collision - calling LLM to write the hypothesis)",
                 kill_test=None, topic_a=ta, chunk_a=ca, snippet_a=text_a[:300],
@@ -431,7 +431,7 @@ def pick_partner(anchor_idx, matrix, index, band):
                 tiers["same"].append((j, s))
     for key in ("diff_topic", "diff_source", "same"):
         if tiers[key]:
-            j, s = max(tiers[key], key=lambda t: t[1])
+            j, s = random.choice(tiers[key])   # sample the band, don't bunch at its edge
             return (j, float(s))
     return None
 
