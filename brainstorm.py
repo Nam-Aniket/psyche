@@ -212,7 +212,44 @@ class IncompatibleTopicsError(Exception):
     pass
 
 
+MEMORY_TOPIC = "__memory__"
+MIN_MEMORY_CHARS = 60   # a memory is one sentence; the 200-char chunk floor would reject most
+
+
+def _memory_pool_rows(base_dir, dim):
+    """Live atomic memories as pool entries; dim-mismatched rows are dropped."""
+    found = discover_topics(base_dir)
+    path = found.get("default")
+    if not path:
+        return [], []
+    try:
+        conn = sqlite3.connect(path)
+        rows = conn.execute(
+            "SELECT id, category, embedding_blob FROM atomic_memories "
+            "WHERE superseded_by IS NULL AND embedding_blob IS NOT NULL").fetchall()
+        conn.close()
+    except sqlite3.OperationalError:
+        return [], []
+    vecs, index = [], []
+    for mid, cat, blob in rows:
+        v = np.frombuffer(blob, dtype=np.float32)
+        if dim and len(v) != dim:
+            continue
+        vecs.append(v)
+        index.append({"topic": MEMORY_TOPIC, "chunk_id": mid, "source": cat or "memory"})
+    return vecs, index
+
+
 def _fetch_text(base_dir, topic, chunk_id):
+    if topic == MEMORY_TOPIC:
+        found = discover_topics(base_dir)
+        path = found.get("default")
+        if not path:
+            return ""
+        conn = sqlite3.connect(path)
+        row = conn.execute("SELECT fact FROM atomic_memories WHERE id = ?", (chunk_id,)).fetchone()
+        conn.close()
+        return row[0] if row else ""
     found = discover_topics(base_dir)
     conn = db.get_connection(found[topic])
     recs = db.get_chunks_by_ids(conn, [chunk_id])
@@ -221,7 +258,8 @@ def _fetch_text(base_dir, topic, chunk_id):
 
 
 def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
-                        base_dir=None, ledger_path=None, seed=None, epsilon=None):
+                        base_dir=None, ledger_path=None, seed=None, epsilon=None,
+                        include_memories=True):
     if llm is None:
         from llm_client import LLMClient
         llm = LLMClient()
@@ -236,7 +274,7 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
     if not kept:
         raise IncompatibleTopicsError("no embedding-compatible topics to collide.")
 
-    matrix, index = build_pool(kept)
+    matrix, index = build_pool(kept, include_memories=include_memories, base_dir=base_dir)
     if matrix.shape[0] < MIN_POOL:
         raise SparseCorpusError(f"pooled corpus has {matrix.shape[0]} chunks (< {MIN_POOL}); ingest more first.")
 
@@ -277,21 +315,28 @@ def generate_hypotheses(count=5, drift=0.5, topics=None, llm=None,
                 if cands:
                     best = max(cands, key=lambda a: arm_score(stats[a]))
                     partner_topic = next(iter(best - {index[anchor]["topic"]}), None)
-        text_a = _fetch_text(base_dir, index[anchor]["topic"], index[anchor]["chunk_id"])
-        if len(text_a) < MIN_CHUNK_CHARS or not _is_prose(text_a):
+        a_topic = index[anchor]["topic"]
+        text_a = _fetch_text(base_dir, a_topic, index[anchor]["chunk_id"])
+        floor_a = MIN_MEMORY_CHARS if a_topic == MEMORY_TOPIC else MIN_CHUNK_CHARS
+        if len(text_a) < floor_a or (a_topic != MEMORY_TOPIC and not _is_prose(text_a)):
             continue
-        p = pick_partner(anchor, matrix, index, band, only_topic=partner_topic)
+        # a memory anchor never pairs with another memory: one-liners can't bridge
+        excl = MEMORY_TOPIC if a_topic == MEMORY_TOPIC else None
+        p = pick_partner(anchor, matrix, index, band, only_topic=partner_topic,
+                         exclude_topic=excl)
         if p is None:
             wlo, whi = band
             p = pick_partner(anchor, matrix, index, (wlo - 0.05, whi + 0.05),
-                             only_topic=partner_topic)  # widen once
+                             only_topic=partner_topic, exclude_topic=excl)  # widen once
         if p is None and partner_topic is not None:
-            p = pick_partner(anchor, matrix, index, band)   # fall back to normal tiers
+            p = pick_partner(anchor, matrix, index, band, exclude_topic=excl)  # normal tiers
         if p is None:
             continue
         p_idx, realized = p
-        text_b = _fetch_text(base_dir, index[p_idx]["topic"], index[p_idx]["chunk_id"])
-        if len(text_b) < MIN_CHUNK_CHARS or not _is_prose(text_b):
+        b_topic = index[p_idx]["topic"]
+        text_b = _fetch_text(base_dir, b_topic, index[p_idx]["chunk_id"])
+        floor_b = MIN_MEMORY_CHARS if b_topic == MEMORY_TOPIC else MIN_CHUNK_CHARS
+        if len(text_b) < floor_b or (b_topic != MEMORY_TOPIC and not _is_prose(text_b)):
             continue
         ta, ca = index[anchor]["topic"], index[anchor]["chunk_id"]
         tb, cb = index[p_idx]["topic"], index[p_idx]["chunk_id"]
@@ -391,11 +436,13 @@ def _source_titles(conn):
     return {cid: title for cid, title in rows}
 
 
-def build_pool(kept):
+def build_pool(kept, include_memories=False, base_dir=None):
     """Load embeddings from each kept topic DB into one matrix + parallel index.
 
     Returns (matrix: np.ndarray [N, dim], index: list[{"topic","chunk_id","source"}]).
     Global identity is (topic, chunk_id) because chunk ids are only unique within a file.
+    include_memories appends live atomic memories as pseudo-topic MEMORY_TOPIC
+    (skipped when there are no chunks: memory x memory pairs are banned anyway).
     """
     vecs, index = [], []
     for topic, path in kept.items():
@@ -409,6 +456,10 @@ def build_pool(kept):
             index.append({"topic": topic, "chunk_id": rec["chunk_id"],
                           "source": titles.get(rec["chunk_id"], "?")})
         conn.close()
+    if include_memories and vecs:
+        m_vecs, m_index = _memory_pool_rows(base_dir, dim=len(vecs[0]))
+        vecs.extend(m_vecs)
+        index.extend(m_index)
     matrix = np.array(vecs, dtype=np.float32) if vecs else np.empty((0, 0), dtype=np.float32)
     return matrix, index
 
