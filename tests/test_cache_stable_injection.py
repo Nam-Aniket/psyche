@@ -253,5 +253,40 @@ class TestOpenLoops(unittest.TestCase):
         self.assertIn("cold email experiment", out)
 
 
+class TestTemporalRerank(unittest.TestCase):
+    def test_temporal_prompt_reorders_by_updated_at(self):
+        import psyche_prompt_submit as pps
+        rows = [{"id": 1, "fact": "old", "updated_at": "2026-01-01"},
+                {"id": 2, "fact": "new", "updated_at": "2026-07-07"}]
+        out = pps.rank_for_prompt("what did we do recently on psyche?", list(rows), top=2)
+        self.assertEqual([r["id"] for r in out], [2, 1])
+
+    def test_non_temporal_prompt_keeps_relevance_order(self):
+        import psyche_prompt_submit as pps
+        rows = [{"id": 1, "fact": "old", "updated_at": "2026-01-01"},
+                {"id": 2, "fact": "new", "updated_at": "2026-07-07"}]
+        out = pps.rank_for_prompt("how does the graph clustering work in psyche?", list(rows), top=2)
+        self.assertEqual([r["id"] for r in out], [1, 2])
+
+
+class TestContextFallback(unittest.TestCase):
+    def test_short_prompt_builds_query_from_transcript(self):
+        import json as _json
+        import psyche_prompt_submit as pps
+        d = tempfile.mkdtemp()
+        t = os.path.join(d, "t.jsonl")
+        with open(t, "w") as f:
+            f.write(_json.dumps({"type": "user", "message": {"role": "user",
+                    "content": [{"type": "text", "text": "tell me about psyche brainstorm"}]}}) + "\n")
+        q = pps.build_query("and the graph?", t)
+        self.assertIn("and the graph?", q)
+        self.assertIn("brainstorm", q)
+
+    def test_unreadable_transcript_degrades_to_prompt(self):
+        import psyche_prompt_submit as pps
+        self.assertEqual(pps.build_query("and the graph?", "/nope/missing.jsonl"),
+                         "and the graph?")
+
+
 if __name__ == "__main__":
     unittest.main()
