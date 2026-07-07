@@ -559,5 +559,72 @@ class TestBridgeScore(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+def _seed_memories(db_path, dim=4, n=6):
+    """Minimal atomic_memories rows with embeddings (schema per db.init_db)."""
+    import db as _db
+    _db.init_db(db_path)
+    conn = sqlite3.connect(db_path)
+    for i in range(1, n + 1):
+        rng = np.random.default_rng(5000 + i)
+        vec = rng.standard_normal(dim).astype(np.float32)
+        conn.execute(
+            "INSERT INTO atomic_memories (fact, category, embedding_blob, created_at, updated_at)"
+            " VALUES (?,?,?,?,?)",
+            (f"durable lesson number {i} learned from real project work sessions", "lesson",
+             vec.tobytes(), "2026-01-01", "2026-01-01"))
+    conn.commit()
+    conn.close()
+
+
+class TestMemoryPool(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        _make_topic_db(os.path.join(self.dir, "knowledge.db"), n=30)
+        _seed_memories(os.path.join(self.dir, "knowledge.db"))
+        _make_topic_db(os.path.join(self.dir, "topic_two.db"), n=30)
+
+    def _pool(self):
+        found = brainstorm.discover_topics(base_dir=self.dir)
+        kept, _ = brainstorm.select_compatible_topics(found)
+        return brainstorm.build_pool(kept, include_memories=True, base_dir=self.dir)
+
+    def test_pool_contains_memory_rows_tagged(self):
+        matrix, index = self._pool()
+        mems = [e for e in index if e["topic"] == brainstorm.MEMORY_TOPIC]
+        self.assertEqual(len(mems), 6)
+        self.assertEqual(matrix.shape[0], 66)
+        self.assertEqual(mems[0]["source"], "lesson")
+
+    def test_dim_mismatch_memories_dropped(self):
+        conn = sqlite3.connect(os.path.join(self.dir, "knowledge.db"))
+        bad = np.ones(9, dtype=np.float32)
+        conn.execute("INSERT INTO atomic_memories (fact, category, embedding_blob, created_at,"
+                     " updated_at) VALUES ('odd dim fact for testing the dimension guard',"
+                     " 'fact', ?, '2026-01-01', '2026-01-01')", (bad.tobytes(),))
+        conn.commit()
+        conn.close()
+        matrix, index = self._pool()
+        self.assertEqual(sum(1 for e in index if e["topic"] == brainstorm.MEMORY_TOPIC), 6)
+
+    def test_memory_fetch_and_no_mem_x_mem(self):
+        matrix, index = self._pool()
+        m_idx = next(i for i, e in enumerate(index) if e["topic"] == brainstorm.MEMORY_TOPIC)
+        txt = brainstorm._fetch_text(self.dir, brainstorm.MEMORY_TOPIC, index[m_idx]["chunk_id"])
+        self.assertIn("durable lesson", txt)
+        got = brainstorm.pick_partner(m_idx, matrix, index, (-1.0, 1.0),
+                                      exclude_topic=brainstorm.MEMORY_TOPIC)
+        self.assertIsNotNone(got)
+        self.assertNotEqual(index[got[0]]["topic"], brainstorm.MEMORY_TOPIC)
+
+    def test_generate_respects_include_memories_false(self):
+        out = brainstorm.generate_hypotheses(count=2, drift=0.5, llm=_EndlessLLM(),
+                                             base_dir=self.dir,
+                                             ledger_path=os.path.join(self.dir, "b.db"),
+                                             include_memories=False)
+        for h in out:
+            self.assertNotEqual(h["source_a"]["topic"], brainstorm.MEMORY_TOPIC)
+            self.assertNotEqual(h["source_b"]["topic"], brainstorm.MEMORY_TOPIC)
+
+
 if __name__ == "__main__":
     unittest.main()
