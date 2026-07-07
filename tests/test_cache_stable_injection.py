@@ -162,5 +162,131 @@ class TestStableBlockHash(unittest.TestCase):
         self.assertNotEqual(hc.stable_block_hash("abc"), hc.stable_block_hash("xyz"))
 
 
+def _insert_fact_at(conn, fact, ts, category="decision", project=None):
+    """Insert a standing fact with an explicit timestamp (deterministic ordering)."""
+    conn.execute(
+        "INSERT INTO atomic_memories (fact, category, project, agent_id, run_id, created_at, updated_at) "
+        "VALUES (?,?,?,?,?,?,?)",
+        (fact, category, project, "agent", "run", ts, ts),
+    )
+    conn.commit()
+    return conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+
+class TestSplitStandingBlock(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        self.tmp.close()
+        self.db_path = self.tmp.name
+        db.init_db(self.db_path)
+        conn = db.get_connection(self.db_path)
+        try:
+            for i in range(15):
+                _insert_fact_at(conn, f"decision number {i} about something durable",
+                                f"2026-06-01T00:00:{i:02d}+00:00")
+        finally:
+            conn.close()
+
+    def tearDown(self):
+        try:
+            os.remove(self.db_path)
+        except OSError:
+            pass
+
+    def test_stable_slots_plus_recent_tail(self):
+        stable, tail = memzero.standing_fact_rows_split(db_path=self.db_path)
+        self.assertEqual(len(stable), memzero.STABLE_SLOTS)
+        self.assertEqual(len(tail), memzero.RECENT_SLOTS)
+        stable_ids = [r["id"] for r in stable]
+        self.assertEqual(stable_ids, sorted(stable_ids))          # oldest-first, byte-stable
+        tail_ids = {r["id"] for r in tail}
+        self.assertFalse(tail_ids & set(stable_ids))              # no overlap
+        newest_id = max(r["id"] for r in stable + tail)
+        self.assertIn(newest_id, tail_ids)                        # newest decision surfaces
+
+    def test_stable_prefix_identical_across_new_facts(self):
+        s1, _ = memzero.standing_fact_rows_split(db_path=self.db_path)
+        conn = db.get_connection(self.db_path)
+        try:
+            _insert_fact_at(conn, "decision sixteen just landed",
+                            "2026-06-01T00:01:00+00:00")
+        finally:
+            conn.close()
+        s2, t2 = memzero.standing_fact_rows_split(db_path=self.db_path)
+        self.assertEqual([r["id"] for r in s1], [r["id"] for r in s2])
+        self.assertIn("decision sixteen just landed", [r["fact"] for r in t2])
+
+
+class TestOpenLoops(unittest.TestCase):
+    def test_open_loops_renders_active_items_under_cap(self):
+        import brainstorm
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        ledger = os.path.join(d, "b.db")
+        hid = brainstorm.insert_hypothesis(
+            ledger, text="testing this bold idea", kill_test="k", topic_a="a", chunk_a=1,
+            snippet_a="s", topic_b="b", chunk_b=2, snippet_b="s", drift=0.5, embedding=None)
+        brainstorm.update_hypothesis(ledger, hid, status="testing")
+        out = psyche_session_start.open_loops(ledger_path=ledger, knowledge_db=None)
+        self.assertIn("testing this bold idea", out)
+        self.assertLessEqual(len(out), 400)
+
+    def test_open_loops_empty_when_nothing_active(self):
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        out = psyche_session_start.open_loops(ledger_path=os.path.join(d, "b.db"),
+                                              knowledge_db=None)
+        self.assertEqual(out, "")
+
+    def test_open_loops_includes_active_experiments(self):
+        import psyche_session_start
+        d = tempfile.mkdtemp()
+        kdb = os.path.join(d, "knowledge.db")
+        db.init_db(kdb)
+        conn = db.get_connection(kdb)
+        conn.execute("INSERT INTO experiments (title, status, created_at) "
+                     "VALUES ('cold email experiment', 'active', '2026-07-01')")
+        conn.commit()
+        conn.close()
+        out = psyche_session_start.open_loops(ledger_path=os.path.join(d, "b.db"),
+                                              knowledge_db=kdb)
+        self.assertIn("cold email experiment", out)
+
+
+class TestTemporalRerank(unittest.TestCase):
+    def test_temporal_prompt_reorders_by_updated_at(self):
+        import psyche_prompt_submit as pps
+        rows = [{"id": 1, "fact": "old", "updated_at": "2026-01-01"},
+                {"id": 2, "fact": "new", "updated_at": "2026-07-07"}]
+        out = pps.rank_for_prompt("what did we do recently on psyche?", list(rows), top=2)
+        self.assertEqual([r["id"] for r in out], [2, 1])
+
+    def test_non_temporal_prompt_keeps_relevance_order(self):
+        import psyche_prompt_submit as pps
+        rows = [{"id": 1, "fact": "old", "updated_at": "2026-01-01"},
+                {"id": 2, "fact": "new", "updated_at": "2026-07-07"}]
+        out = pps.rank_for_prompt("how does the graph clustering work in psyche?", list(rows), top=2)
+        self.assertEqual([r["id"] for r in out], [1, 2])
+
+
+class TestContextFallback(unittest.TestCase):
+    def test_short_prompt_builds_query_from_transcript(self):
+        import json as _json
+        import psyche_prompt_submit as pps
+        d = tempfile.mkdtemp()
+        t = os.path.join(d, "t.jsonl")
+        with open(t, "w") as f:
+            f.write(_json.dumps({"type": "user", "message": {"role": "user",
+                    "content": [{"type": "text", "text": "tell me about psyche brainstorm"}]}}) + "\n")
+        q = pps.build_query("and the graph?", t)
+        self.assertIn("and the graph?", q)
+        self.assertIn("brainstorm", q)
+
+    def test_unreadable_transcript_degrades_to_prompt(self):
+        import psyche_prompt_submit as pps
+        self.assertEqual(pps.build_query("and the graph?", "/nope/missing.jsonl"),
+                         "and the graph?")
+
+
 if __name__ == "__main__":
     unittest.main()
