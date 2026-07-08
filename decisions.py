@@ -142,3 +142,27 @@ def list_due_decisions(path=None, today=None):
     today = today or date.today().isoformat()
     return [d for d in list_decisions(path, status="open")
             if d["review_by"] <= today]
+
+
+def score_decision(path, did, *, outcome, hit):
+    """Close a decision with its real-world result. Refuses to score twice —
+    the first prediction record is the calibration data; overwriting it would
+    let hindsight rewrite history."""
+    if not (isinstance(outcome, str) and outcome.strip()):
+        raise ValidationError("outcome must be a non-empty string")
+    if hit not in ("yes", "no", "partial"):
+        raise ValidationError("hit must be 'yes', 'no', or 'partial'")
+    conn = _conn(path)
+    try:
+        rec = _get(conn, did)
+        if rec is None:
+            raise ValidationError(f"no decision with id {did}")
+        if rec["status"] == "scored":
+            raise ValidationError(f"decision {did} is already scored")
+        conn.execute(
+            "UPDATE decisions SET status='scored', outcome=?, hit=?, updated_at=? "
+            "WHERE id=?", (outcome, hit, _now(), did))
+        conn.commit()
+        return _get(conn, did)
+    finally:
+        conn.close()

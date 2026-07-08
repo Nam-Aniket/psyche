@@ -94,5 +94,32 @@ class TestDueDecisions(LedgerBase):
         self.assertEqual([d["id"] for d in due], [rec["id"]])
 
 
+class TestScoreDecision(LedgerBase):
+    def test_score_closes_record(self):
+        rec = decisions.journal_decision(self.path, **_valid())
+        scored = decisions.score_decision(self.path, rec["id"],
+                                          outcome="accepted teardown", hit="yes")
+        self.assertEqual(scored["status"], "scored")
+        self.assertEqual(scored["outcome"], "accepted teardown")
+        self.assertEqual(scored["hit"], "yes")
+
+    def test_double_score_refused(self):
+        rec = decisions.journal_decision(self.path, **_valid())
+        decisions.score_decision(self.path, rec["id"], outcome="x", hit="no")
+        with self.assertRaises(decisions.ValidationError):
+            decisions.score_decision(self.path, rec["id"], outcome="y", hit="yes")
+        # first scoring must survive untouched
+        self.assertEqual(decisions.get_decision(self.path, rec["id"])["outcome"], "x")
+
+    def test_bad_hit_rejected(self):
+        rec = decisions.journal_decision(self.path, **_valid())
+        with self.assertRaises(decisions.ValidationError):
+            decisions.score_decision(self.path, rec["id"], outcome="x", hit="maybe")
+
+    def test_unknown_id_rejected(self):
+        with self.assertRaises(decisions.ValidationError):
+            decisions.score_decision(self.path, 999, outcome="x", hit="yes")
+
+
 if __name__ == "__main__":
     unittest.main()
