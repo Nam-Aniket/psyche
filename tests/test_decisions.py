@@ -121,5 +121,28 @@ class TestScoreDecision(LedgerBase):
             decisions.score_decision(self.path, 999, outcome="x", hit="yes")
 
 
+class TestHookInjection(LedgerBase):
+    def _open_loops(self):
+        hooks_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "hooks")
+        sys.path.insert(0, hooks_dir)
+        try:
+            import psyche_session_start as ss
+            return ss.open_loops(ledger_path=self.path)
+        finally:
+            sys.path.remove(hooks_dir)
+
+    def test_due_decision_appears_in_open_loops(self):
+        decisions.journal_decision(self.path, **_valid(review_by="2020-01-01"))
+        out = self._open_loops()
+        self.assertIn("Decisions due for scoring", out)
+        self.assertIn("TidyMyData prospect", out)
+
+    def test_no_due_decisions_no_section(self):
+        decisions.journal_decision(self.path, **_valid(review_by="2099-01-01"))
+        out = self._open_loops()
+        self.assertNotIn("Decisions due for scoring", out)
+
+
 if __name__ == "__main__":
     unittest.main()
