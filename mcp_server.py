@@ -782,6 +782,43 @@ def main():
                                 },
                                 "required": ["id"]
                             }
+                        },
+                        {
+                            "name": "journal_decision",
+                            "description": "Journal a decision with a scorable prediction into the decision ledger. Fail-closed: rejects records missing prediction, confidence, or review_by. Call this as the final, mandatory step of the /decide pipeline.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "situation": {"type": "string", "description": "The decision, one line"},
+                                    "game": {"type": "string", "description": "Named game/structure (e.g. 'lemons market', 'iterated cooperation')"},
+                                    "game_source": {"type": "string", "enum": ["atoms", "model-knowledge"], "description": "'atoms' when trigger conditions from the corpus matched; 'model-knowledge' when classified from general knowledge"},
+                                    "atoms_applied": {"type": "array", "items": {"type": "string"}, "description": "Atom IDs applied (e.g. ['coop-01']). Required non-empty when game_source='atoms'."},
+                                    "recommendation": {"type": "string", "description": "The recommended move"},
+                                    "falsifier": {"type": "string", "description": "What evidence would prove this framing wrong"},
+                                    "prediction": {"type": "string", "description": "What the user expects to happen"},
+                                    "confidence": {"type": "integer", "description": "0-100"},
+                                    "review_by": {"type": "string", "description": "ISO date (YYYY-MM-DD) when the prediction gets scored"}
+                                },
+                                "required": ["situation", "game", "game_source", "atoms_applied", "recommendation", "falsifier", "prediction", "confidence", "review_by"]
+                            }
+                        },
+                        {
+                            "name": "list_due_decisions",
+                            "description": "List open decisions whose review_by date has arrived - predictions waiting to be scored.",
+                            "inputSchema": {"type": "object", "properties": {}}
+                        },
+                        {
+                            "name": "score_decision",
+                            "description": "Close a journaled decision with its real-world outcome. Refuses to score twice.",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "id": {"type": "integer", "description": "Decision id from journal_decision / list_due_decisions"},
+                                    "outcome": {"type": "string", "description": "What actually happened"},
+                                    "hit": {"type": "string", "enum": ["yes", "no", "partial"], "description": "Did the prediction hold?"}
+                                },
+                                "required": ["id", "outcome", "hit"]
+                            }
                         }
                     ]
                 }
@@ -981,6 +1018,40 @@ def main():
                             notes=arguments.get("notes"),
                             text=arguments.get("text"),
                             kill_test=arguments.get("kill_test"))
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "journal_decision":
+                        import decisions
+                        try:
+                            rec = decisions.journal_decision(
+                                None,
+                                situation=arguments.get("situation"),
+                                game=arguments.get("game"),
+                                game_source=arguments.get("game_source"),
+                                atoms_applied=arguments.get("atoms_applied") or [],
+                                recommendation=arguments.get("recommendation"),
+                                falsifier=arguments.get("falsifier"),
+                                prediction=arguments.get("prediction"),
+                                confidence=arguments.get("confidence"),
+                                review_by=arguments.get("review_by"),
+                            )
+                            text_result = json.dumps(rec, indent=2)
+                        except decisions.ValidationError as e:
+                            text_result = json.dumps({"error": str(e)})
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "list_due_decisions":
+                        import decisions
+                        text_result = json.dumps(decisions.list_due_decisions(None), indent=2)
+                        resp["result"] = {"content": [{"type": "text", "text": text_result}]}
+                    elif tool_name == "score_decision":
+                        import decisions
+                        try:
+                            rec = decisions.score_decision(
+                                None, arguments.get("id"),
+                                outcome=arguments.get("outcome"),
+                                hit=arguments.get("hit"))
+                            text_result = json.dumps(rec, indent=2)
+                        except decisions.ValidationError as e:
+                            text_result = json.dumps({"error": str(e)})
                         resp["result"] = {"content": [{"type": "text", "text": text_result}]}
                     else:
                         resp["error"] = {
