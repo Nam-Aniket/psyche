@@ -1,0 +1,79 @@
+"""Tests for the decision journal ledger (decisions.py).
+
+Temp SQLite DBs; no LLM calls, no MCP server needed. Mirrors the
+test_brainstorm.py setup conventions.
+"""
+import os
+import sys
+import tempfile
+import unittest
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import decisions
+
+
+def _valid(**over):
+    """A fully valid journal_decision kwargs dict; override any field per test."""
+    kw = dict(
+        situation="TidyMyData prospect wants 50% off the audit",
+        game="lemons market",
+        game_source="atoms",
+        atoms_applied=["coop-01"],
+        recommendation="Hold price; offer the free teardown instead of a discount",
+        falsifier="They walk AND a comparable prospect later converts at full price",
+        prediction="They accept the teardown within a week",
+        confidence=70,
+        review_by="2026-07-22",
+    )
+    kw.update(over)
+    return kw
+
+
+class LedgerBase(unittest.TestCase):
+    def setUp(self):
+        fd, self.path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+
+    def tearDown(self):
+        os.unlink(self.path)
+
+
+class TestJournalDecision(LedgerBase):
+    def test_roundtrip(self):
+        rec = decisions.journal_decision(self.path, **_valid())
+        self.assertEqual(rec["status"], "open")
+        self.assertEqual(rec["atoms_applied"], ["coop-01"])
+        self.assertEqual(rec["confidence"], 70)
+        again = decisions.get_decision(self.path, rec["id"])
+        self.assertEqual(again, rec)
+
+    def test_missing_prediction_rejected_no_row(self):
+        with self.assertRaises(decisions.ValidationError):
+            decisions.journal_decision(self.path, **_valid(prediction=""))
+        self.assertEqual(decisions.list_decisions(self.path), [])
+
+    def test_bad_confidence_rejected(self):
+        for bad in (-1, 101, "70", 70.5, True):
+            with self.assertRaises(decisions.ValidationError):
+                decisions.journal_decision(self.path, **_valid(confidence=bad))
+
+    def test_bad_review_by_rejected(self):
+        with self.assertRaises(decisions.ValidationError):
+            decisions.journal_decision(self.path, **_valid(review_by="soonish"))
+
+    def test_bad_game_source_rejected(self):
+        with self.assertRaises(decisions.ValidationError):
+            decisions.journal_decision(self.path, **_valid(game_source="vibes"))
+
+    def test_atoms_source_requires_atom_ids(self):
+        with self.assertRaises(decisions.ValidationError):
+            decisions.journal_decision(self.path, **_valid(atoms_applied=[]))
+
+    def test_model_knowledge_allows_empty_atoms(self):
+        rec = decisions.journal_decision(
+            self.path, **_valid(game_source="model-knowledge", atoms_applied=[]))
+        self.assertEqual(rec["game_source"], "model-knowledge")
+
+
+if __name__ == "__main__":
+    unittest.main()
