@@ -63,7 +63,7 @@ Fields:
 | prediction | text | what the user expects to happen |
 | confidence | integer 0–100 | |
 | review_by | text (ISO date) | |
-| status | text | `open` → `due` → `scored` |
+| status | text | `open` → `scored` (`due` is computed by list_due_decisions — open AND review_by passed — not stored, so no background job is needed to flip states) |
 | outcome | text nullable | filled at scoring |
 | hit | text nullable | `yes` / `no` / `partial` |
 
