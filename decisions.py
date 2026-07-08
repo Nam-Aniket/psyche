@@ -134,3 +134,11 @@ def journal_decision(path=None, *, situation, game, game_source, atoms_applied,
     rec = _get(conn, cur.lastrowid)
     conn.close()
     return rec
+
+
+def list_due_decisions(path=None, today=None):
+    """Open decisions whose review_by date has arrived. 'Due' is computed,
+    never stored. `today` is injectable for tests; defaults to the real date."""
+    today = today or date.today().isoformat()
+    return [d for d in list_decisions(path, status="open")
+            if d["review_by"] <= today]

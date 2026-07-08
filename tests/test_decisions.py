@@ -75,5 +75,24 @@ class TestJournalDecision(LedgerBase):
         self.assertEqual(rec["game_source"], "model-knowledge")
 
 
+class TestDueDecisions(LedgerBase):
+    def test_due_only_lists_open_past_review(self):
+        past = decisions.journal_decision(self.path, **_valid(review_by="2026-01-01"))
+        decisions.journal_decision(self.path, **_valid(review_by="2099-01-01"))
+        due = decisions.list_due_decisions(self.path, today="2026-07-08")
+        self.assertEqual([d["id"] for d in due], [past["id"]])
+
+    def test_scored_decisions_are_not_due(self):
+        rec = decisions.journal_decision(self.path, **_valid(review_by="2026-01-01"))
+        decisions.score_decision(self.path, rec["id"], outcome="accepted teardown",
+                                 hit="yes")
+        self.assertEqual(decisions.list_due_decisions(self.path, today="2026-07-08"), [])
+
+    def test_due_on_the_review_date_itself(self):
+        rec = decisions.journal_decision(self.path, **_valid(review_by="2026-07-08"))
+        due = decisions.list_due_decisions(self.path, today="2026-07-08")
+        self.assertEqual([d["id"] for d in due], [rec["id"]])
+
+
 if __name__ == "__main__":
     unittest.main()
