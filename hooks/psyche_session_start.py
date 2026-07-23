@@ -5,7 +5,7 @@ import sys
 import _hook_common as hc
 
 
-def open_loops(ledger_path=None, knowledge_db=None, cap=400):
+def open_loops(ledger_path=None, knowledge_db=None, cap=600):
     """Compact 'what to explore' tail: in-flight hypotheses + active experiments.
     Empty string when there is nothing open. Never raises."""
     lines = []
@@ -29,6 +29,17 @@ def open_loops(ledger_path=None, knowledge_db=None, cap=400):
             conn.close()
             if rows:
                 lines.append("Active experiments: " + "; ".join(r[0] for r in rows))
+    except Exception:
+        pass
+    try:
+        import decisions
+        due = decisions.list_due_decisions(ledger_path)
+        if due:
+            lines.append(f"Decisions due for scoring ({len(due)}):")
+            for r in due[:2]:
+                lines.append(f"- [#{r['id']}] {r['situation'][:100]} | predicted: "
+                             f"{r['prediction'][:80]} (conf {r['confidence']}, "
+                             f"due {r['review_by']})")
     except Exception:
         pass
     return "\n".join(lines)[:cap]
