@@ -12,6 +12,7 @@ All notable changes to the **Psyche** project will be documented in this file.
 ### Changed
 - Installation, web UI, and showcase copy now distinguish local data handling from optional Gemini, OpenAI, Ollama, and Claude CLI paths.
 - `psyche setup` works from installed distributions such as pipx without attempting to install the current working directory.
+- CI uses the Node 24-based GitHub action releases instead of deprecated Node 20 runtimes.
 
 ## [0.7.0] - 2026-06-12
 
