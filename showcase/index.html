@@ -331,7 +331,7 @@
     <div class="section-head reveal">
       <p class="eyebrow">Atomic memory</p>
       <h2>One brain across Claude Code, Codex &amp; Antigravity.</h2>
-      <p class="lede">A mem0-class memory engine — extraction, deduplication, hybrid retrieval, entity links — that runs entirely on your machine, costs $0, and is shared by every agent you use.</p>
+      <p class="lede">A shared, inspectable memory for Claude Code, Codex, Gemini and Antigravity. Storage, indexing and retrieval are local by default; remote chat and extraction are explicit choices.</p>
     </div>
     <div class="reveal">
       <table class="cmp">
@@ -339,8 +339,8 @@
         <tbody>
           <tr><td class="rowlabel">Session start</td><td class="old">Agent rediscovers context from scratch</td><td>~1.5 KB of standing facts injected automatically</td></tr>
           <tr><td class="rowlabel">Each prompt</td><td class="old">You re-explain, agent re-reads</td><td>Up to ~800 tokens of <em>relevant</em> facts — only on a strong match, never noise</td></tr>
-          <tr><td class="rowlabel">Session end</td><td class="old">Everything is forgotten</td><td>Durable facts extracted &amp; stored, zero tokens billed to your agent</td></tr>
-          <tr><td class="rowlabel">Your data</td><td class="old">Re-uploaded to a hosted memory SaaS</td><td>Never leaves your disk</td></tr>
+          <tr><td class="rowlabel">Session end</td><td class="old">Everything is forgotten</td><td>Durable facts stored when an extractor is configured</td></tr>
+          <tr><td class="rowlabel">Your data</td><td class="old">Re-uploaded to a hosted memory SaaS</td><td>Stored locally; remote models are optional</td></tr>
           <tr><td class="rowlabel">Cross-agent</td><td class="old">Each tool has its own silo</td><td>One shared local store for all of them</td></tr>
         </tbody>
       </table>
@@ -390,7 +390,7 @@
     <div class="section-head reveal">
       <p class="eyebrow">The mechanics</p>
       <h2>Free, fast, and never noisy.</h2>
-      <p class="lede">The engineering that makes shared memory cost $0 in API calls and never waste a token on irrelevant context.</p>
+      <p class="lede">The engineering that keeps the default memory path local and avoids injecting irrelevant context.</p>
     </div>
     <div class="bento reveal">
       <div class="card b-3">
@@ -457,7 +457,7 @@
         <div class="tl-node"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
         <span class="mono">SessionEnd</span>
         <h3>Extract &amp; score</h3>
-        <p>Final facts stored and the session classified for the learning loop — zero tokens billed to you.</p>
+        <p>Final facts are stored and the session is classified for the learning loop when an extraction provider is configured.</p>
       </div>
     </div>
   </div>
@@ -554,8 +554,8 @@
   <div class="wrap">
     <div class="section-head reveal">
       <p class="eyebrow">How it works</p>
-      <h2 style="color:#fbf7ee;">From your files to your agent — entirely on-device.</h2>
-      <p>Every stage of the pipeline runs locally. Nothing is uploaded; every result is cited back to a file, chapter, or page.</p>
+      <h2 style="color:#fbf7ee;">From your files to your agent — local by default.</h2>
+      <p>The default ONNX path keeps parsing, indexing, storage and retrieval local. If you select a cloud chat or extraction provider, Psyche labels what text is sent. Every result is cited back to a file, chapter or page.</p>
     </div>
     <div class="pipe reveal">
       <div class="pstep"><div class="pn">01 · INGEST</div><h3>Scan</h3><p>Markdown, PDF, EPUB, Org, DOCX folders.</p></div>
@@ -630,13 +630,13 @@
         <div class="stepn">1</div>
         <h3>Ingest your notes &amp; books</h3>
         <p style="color:var(--muted); margin-bottom:14px;">Point Psyche at any folders of documents.</p>
-        <div class="panel"><div class="panel-body" style="font-size:.85rem;"><span class="grn">npx</span> <span class="wht">psyche ingest</span> <span class="blu">~/Documents ~/Obsidian</span></div></div>
+        <div class="panel"><div class="panel-body" style="font-size:.85rem;"><span class="grn">psyche</span> <span class="wht">ingest</span> <span class="blu">~/Documents ~/Obsidian</span></div></div>
       </div>
       <div class="card step">
         <div class="stepn">2</div>
         <h3>Expose it as an MCP tool</h3>
         <p style="color:var(--muted); margin-bottom:14px;">Start the server so any assistant can query it.</p>
-        <div class="panel"><div class="panel-body" style="font-size:.85rem;"><span class="grn">npx</span> <span class="wht">psyche start-mcp</span></div></div>
+        <div class="panel"><div class="panel-body" style="font-size:.85rem;"><span class="grn">psyche</span> <span class="wht">start-mcp</span></div></div>
       </div>
     </div>
 

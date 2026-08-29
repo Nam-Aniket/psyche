@@ -1,7 +1,7 @@
 {
   "name": "psyche",
   "version": "0.7.0",
-  "description": "Turn your Obsidian vaults, books, and documents into a local-first, private searchable knowledge and memory layer for AI assistants (Cursor, Claude Desktop, Antigravity).",
+  "description": "One local-first, inspectable memory and knowledge layer shared by Claude Code, Codex, Gemini, Antigravity, and Cursor.",
   "main": "bin/cli.js",
   "bin": {
     "psyche": "./bin/cli.js"

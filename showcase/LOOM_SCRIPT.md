@@ -41,7 +41,7 @@ A scene-by-scene recording plan for a polished, portfolio-grade product walkthro
 
 > "Every AI coding assistant has the same problem: amnesia. Every new session, it re-reads your files, re-asks your preferences, repeats mistakes it already made — and you pay for all of it, in tokens.
 >
-> This is Psyche. It gives every assistant you use one shared, persistent memory — and it runs entirely on your machine."
+> This is Psyche. It gives every assistant you use one shared, persistent memory. Storage, indexing and retrieval stay on your machine by default."
 
 ---
 
@@ -63,7 +63,7 @@ A scene-by-scene recording plan for a polished, portfolio-grade product walkthro
 | **Visual** | Scroll through the before/after comparison table, then the cross-agent hub (Claude Code · Codex · Antigravity · Cursor → one local store). |
 | **Action** | Trace the arrow down to "One shared local store." |
 
-> "A preference you state in Codex is known to Claude Code. A lesson learned in one session follows you to the next. It's a mem0-class memory engine — extraction, dedup, hybrid retrieval, entity links — shared by every agent, and it costs zero dollars to run because nothing calls an API and nothing leaves your disk."
+> "A preference you state in Codex can be retrieved by Claude Code. A lesson learned in one session can follow you to the next. Psyche handles extraction, deduplication, hybrid retrieval and entity links in one shared local store. Cloud-backed extraction is optional and clearly configured."
 
 ---
 
@@ -105,7 +105,7 @@ psyche mem review
 
 > "Under the hood: lifecycle hooks do everything. Inject at session start, search on each prompt, and — the piece I just added — capture facts *mid-session*, so your learnings survive even if you walk away for days and never formally end the session.
 >
-> And the whole pipeline is local: ingest your notes and books, chunk them, embed with on-device ONNX models, retrieve with reciprocal rank fusion, rerank with a CPU cross-encoder, and serve it all over the Model Context Protocol. Nothing is uploaded. Every answer is cited back to a file, chapter, or page."
+> The default pipeline is local: ingest your notes and books, chunk them, embed with an on-device ONNX model, retrieve with reciprocal rank fusion, rerank with a CPU cross-encoder, and serve it over the Model Context Protocol. If you choose a cloud chat provider, only the retrieved passages needed for that answer are sent. Every result is cited back to a file, chapter or page."
 
 ---
 
@@ -123,10 +123,10 @@ psyche mem review
 
 | | |
 |---|---|
-| **Visual** | Quickstart section — the two `npx` commands. End on the hero or the GitHub button. |
+| **Visual** | Quickstart section — the `psyche` CLI commands. End on the hero or the GitHub button. |
 | **Action** | Hover "Star on GitHub." |
 
-> "Two commands to get started. It's open source, MIT-licensed, with a hundred and sixty tests behind it. Link's in the description — I'd love a star, and I'm happy to talk through how any of it works."
+> "The quick start is in the README. It's open source, MIT-licensed, and backed by an automated test suite. Link's in the description — I'd love a star, and I'm happy to talk through how any of it works."
 
 *(End card: Psyche logo + GitHub URL, hold 3s.)*
 

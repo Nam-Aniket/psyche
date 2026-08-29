@@ -52,9 +52,10 @@ def main():
     if health and not health.get("ok"):
         print("WARNING: Psyche memory extraction is FAILING (last attempt "
               f"{health.get('ts', '?')}): {health.get('error', 'unknown')}. "
-              "New facts are NOT being stored. Surface this to the user; if the "
-              "error says not logged in, they should run `claude /login` in a "
-              "terminal (extraction runs headless on their Claude subscription).")
+              "New facts are NOT being stored. Surface this to the user and check "
+              "the explicitly configured chat/extraction provider. If Claude CLI "
+              "extraction was enabled and the error says not logged in, run "
+              "`claude /login` in a terminal.")
     import memzero
     project = memzero.project_key_for(hc.cwd_from_payload(payload))
     stable, tail = memzero.standing_fact_rows_split(project=project)

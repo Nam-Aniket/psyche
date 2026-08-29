@@ -2,6 +2,17 @@
 
 All notable changes to the **Psyche** project will be documented in this file.
 
+## [Unreleased]
+
+### Security
+- Local mode no longer invokes Claude CLI for transcript extraction unless `PSYCHE_ALLOW_CLAUDE_CLI_EXTRACTION=1` is explicitly set.
+- Setup no longer edits AI client configs, installs background services, adds Git hooks, or creates a global command unless the matching option is requested.
+- Background watchers invoke the installed Psyche executable directly instead of the unrelated npm package named `psyche`.
+
+### Changed
+- Installation, web UI, and showcase copy now distinguish local data handling from optional Gemini, OpenAI, Ollama, and Claude CLI paths.
+- `psyche setup` works from installed distributions such as pipx without attempting to install the current working directory.
+
 ## [0.7.0] - 2026-06-12
 
 ### Added

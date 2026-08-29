@@ -2,6 +2,8 @@ import os
 import sys
 import subprocess
 import shutil
+import argparse
+import shlex
 
 def register_mcp_configs(python_bin, project_root):
     import json
@@ -170,10 +172,94 @@ Search the psyche database for: "$ARGUMENTS"
     except Exception as e:
         print(f"⚠️ Warning: Could not register Cursor slash command prompt: {e}")
 
+def _parse_setup_options(args=None):
+    parser = argparse.ArgumentParser(
+        prog="psyche setup",
+        description="Configure Psyche. Host integrations are opt-in.",
+    )
+    parser.add_argument(
+        "--connect",
+        action="store_true",
+        help="connect detected AI clients after showing the setup wizard",
+    )
+    parser.add_argument(
+        "--watcher",
+        action="store_true",
+        help="install the optional background ingestion watcher",
+    )
+    parser.add_argument(
+        "--git-hook",
+        action="store_true",
+        help="install Psyche's optional post-commit learning hook in this checkout",
+    )
+    parser.add_argument(
+        "--global-link",
+        action="store_true",
+        help="clone bootstrap only: create ~/.local/bin/psyche without replacing an existing command",
+    )
+    return parser.parse_args(sys.argv[1:] if args is None else args)
+
+
+def _run_requested_integrations(options, project_root):
+    """Run only the host mutations the user explicitly requested."""
+    changed = False
+    if options.connect:
+        import connect
+        actions = connect.auto_connect(force=True)
+        for action in actions or ["no supported AI clients detected"]:
+            print(f"  {action}")
+        changed = True
+    if options.watcher:
+        setup_background_watcher(project_root)
+        changed = True
+    if options.git_hook:
+        install_git_post_commit_hook(project_root)
+        changed = True
+    if not changed:
+        print("\nNo AI client configs, background services, or Git hooks were changed.")
+        print("Preview agent changes with: psyche connect --dry-run")
+        print("Connect detected agents with: psyche connect")
+        print("Optional services can be added later with: psyche setup --watcher or --git-hook")
+
+
+def _install_global_link(psyche_bin):
+    """Create an opt-in user-local command without overwriting anything."""
+    local_bin = os.path.expanduser("~/.local/bin")
+    os.makedirs(local_bin, exist_ok=True)
+    destination = os.path.join(local_bin, "psyche")
+    source = os.path.abspath(psyche_bin)
+    if os.path.lexists(destination):
+        if os.path.islink(destination) and os.path.realpath(destination) == os.path.realpath(source):
+            print(f"✅ 'psyche' already points to {source}")
+            return destination
+        raise FileExistsError(
+            f"Refusing to replace existing command at {destination}. "
+            "Remove or rename it yourself, then retry --global-link."
+        )
+    os.symlink(source, destination)
+    print(f"✅ Linked 'psyche' to {destination}")
+    print("Ensure ~/.local/bin is on your PATH.")
+    return destination
+
+
 def run_setup():
     # If PSYCHE_SETUP_WIZARD_ONLY is set, we just run the interactive wizard
     if os.environ.get("PSYCHE_SETUP_WIZARD_ONLY") == "true":
         run_wizard_phase()
+        return
+
+    options = _parse_setup_options()
+    project_root_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Installed distributions (for example pipx) are already bootstrapped.
+    # `psyche setup` should configure them, not try to install the current
+    # working directory in editable mode.
+    if os.environ.get("PSYCHE_BOOTSTRAP") != "1":
+        print("🧠 Configuring Psyche...")
+        if options.global_link:
+            print("ℹ️  No global link was created: an installed Psyche command is already on PATH.")
+        run_wizard_phase()
+        _run_requested_integrations(options, project_root_dir)
         return
 
     print("🧠 Setting up Psyche RAG Engine...")
@@ -198,48 +284,13 @@ def run_setup():
     print("Installing package and dependencies in editable mode...")
     subprocess.run([pip_path, "install", "-e", "."], check=True)
 
-    # 3. Create global symlink (macOS/Linux only)
-    if sys.platform != "win32":
-        print("Registering global 'psyche' command...")
-        linked = False
-        # Try /opt/homebrew/bin, /usr/local/bin, ~/.local/bin
-        global_dirs = ["/opt/homebrew/bin", "/usr/local/bin", os.path.expanduser("~/.local/bin")]
-        abs_psyche_bin = os.path.abspath(psyche_bin)
-        
-        for g_dir in global_dirs:
-            if os.path.isdir(g_dir):
-                dst = os.path.join(g_dir, "psyche")
-                try:
-                    if os.path.exists(dst) or os.path.islink(dst):
-                        os.remove(dst)
-                    os.symlink(abs_psyche_bin, dst)
-                    print(f"✅ Success! 'psyche' command linked to {dst}")
-                    linked = True
-                    break
-                except Exception:
-                    # Continue to next directory if this one fails (e.g. permission error)
-                    continue
-        
-        if not linked:
-            # If we couldn't write to any standard dirs, try to create ~/.local/bin
-            local_bin = os.path.expanduser("~/.local/bin")
-            try:
-                os.makedirs(local_bin, exist_ok=True)
-                dst = os.path.join(local_bin, "psyche")
-                if os.path.exists(dst) or os.path.islink(dst):
-                    os.remove(dst)
-                os.symlink(abs_psyche_bin, dst)
-                print(f"✅ Success! 'psyche' command linked to {dst}")
-                linked = True
-            except Exception as e:
-                print(f"⚠️  Could not create symlink at {dst}: {e}")
-                print(f"You can run psyche using: {abs_psyche_bin}")
+    # 3. Exposing a command outside the checkout is an explicit opt-in.
+    if options.global_link:
+        if sys.platform == "win32":
+            print("⚠️  --global-link is only supported on macOS/Linux.")
+        else:
+            _install_global_link(psyche_bin)
 
-    # 3.5 Register MCP configuration and slash prompts
-    project_root_dir = os.path.dirname(os.path.abspath(__file__))
-    register_mcp_configs(python_bin, project_root_dir)
-    register_slash_prompts(project_root_dir)
-    
     # 4. Run setup wizard using the virtualenv python to avoid ModuleNotFound errors
     print("\nLaunching Interactive Setup Wizard...")
     os.environ["PSYCHE_SETUP_WIZARD_ONLY"] = "true"
@@ -249,11 +300,36 @@ def run_setup():
     # We run 'setup' subcommand via virtual env python
     subprocess.run([python_bin, "cli.py", "setup"], env=env, check=True)
 
-    # 5. Setup background watcher for automatic background ingestion (run after .env is created)
-    setup_background_watcher(project_root_dir)
+    # Host configuration changes are opt-in. A default install only creates
+    # Psyche's own environment and ~/.psyche configuration.
+    _run_requested_integrations(options, project_root_dir)
 
-    # 6. Install Git post-commit hook for automated log generation
-    install_git_post_commit_hook(project_root_dir)
+
+def _psyche_command(project_root):
+    """Return an explicit command for this Psyche installation.
+
+    Never shell out through `npx psyche`: that npm name belongs to an unrelated
+    package. Prefer the checkout's venv, then the installed console script, and
+    finally this interpreter plus cli.py.
+    """
+    if sys.platform == "win32":
+        local_cli = os.path.join(project_root, ".venv", "Scripts", "psyche.exe")
+    else:
+        local_cli = os.path.join(project_root, ".venv", "bin", "psyche")
+    if os.path.isfile(local_cli):
+        return [os.path.abspath(local_cli)]
+    installed = shutil.which("psyche")
+    if installed:
+        return [os.path.abspath(installed)]
+    return [sys.executable, os.path.join(os.path.abspath(project_root), "cli.py")]
+
+
+def _shell_command(argv):
+    return " ".join(shlex.quote(str(part)) for part in argv)
+
+
+def _windows_command(argv):
+    return subprocess.list2cmdline([str(part) for part in argv])
 
 def setup_background_watcher(project_root):
     home = os.path.expanduser("~")
@@ -307,14 +383,11 @@ def setup_macos_watcher(project_root, watch_dir):
     
     # Create sync wrapper script
     sync_script_path = os.path.join(psyche_config_dir, "sync.sh")
+    ingest_command = _shell_command([*_psyche_command(project_root), "ingest", watch_dir])
     sync_script_content = f"""#!/bin/zsh
-# Load environment variables to resolve node/npx/psyche paths
-[ -f ~/.zprofile ] && source ~/.zprofile
-[ -f ~/.zshrc ] && source ~/.zshrc
-
-# Ingest watched logs and project workspaces
+# Ingest the explicitly selected watch directory.
 echo "=== Sync Triggered at $(date) ===" >> "{psyche_config_dir}/watcher.log"
-npx psyche ingest "{watch_dir}" "{project_root}" >> "{psyche_config_dir}/watcher.log" 2>&1
+{ingest_command} >> "{psyche_config_dir}/watcher.log" 2>&1
 """
     try:
         with open(sync_script_path, "w", encoding="utf-8") as f:
@@ -372,10 +445,11 @@ def setup_windows_watcher(project_root, watch_dir):
     
     # Create sync wrapper batch script
     sync_bat_path = os.path.join(psyche_config_dir, "sync.bat")
+    ingest_command = _windows_command([*_psyche_command(project_root), "ingest", watch_dir])
     sync_bat_content = f"""@echo off
-:: Ingest watched logs and project workspaces
+:: Ingest the explicitly selected watch directory.
 echo === Sync Triggered at %date% %time% === >> "{psyche_config_dir}\\watcher.log"
-call npx psyche ingest "{watch_dir}" "{project_root}" >> "{psyche_config_dir}\\watcher.log" 2>&1
+call {ingest_command} >> "{psyche_config_dir}\\watcher.log" 2>&1
 """
     try:
         with open(sync_bat_path, "w", encoding="utf-8") as f:

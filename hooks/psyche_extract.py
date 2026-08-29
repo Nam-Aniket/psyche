@@ -1,12 +1,12 @@
 """PreCompact/SessionEnd hook: extract durable atomic facts from the transcript.
 
-Write-only — injects nothing. Uses Psyche's chat model when configured; when
-CHAT_MODEL=none, falls back to headless `claude -p --model haiku` on the user's
-subscription (requires a one-time `claude /login`, or a `claude setup-token`
-token in ~/.psyche/.env as CLAUDE_CODE_OAUTH_TOKEN). Every CLI call records its
-outcome to ~/.psyche/extract_health.json so the SessionStart hook can warn the
-user when extraction is failing, instead of dying silently. The near-duplicate
-guard makes PreCompact + SessionEnd double-firing safe.
+Write-only — injects nothing. Uses Psyche's configured chat model. When no chat
+model is configured, extraction stays disabled unless the user explicitly sets
+PSYCHE_ALLOW_CLAUDE_CLI_EXTRACTION=1. That opt-in permits headless
+`claude -p --model sonnet` extraction through the user's Claude subscription.
+Every CLI call records its outcome to ~/.psyche/extract_health.json so the
+SessionStart hook can warn when extraction is failing instead of dying silently.
+The near-duplicate guard makes PreCompact + SessionEnd double-firing safe.
 """
 import json
 import os
@@ -19,10 +19,7 @@ MAX_TRANSCRIPT_CHARS = 12000
 
 
 class _ClaudeCLIChat:
-    """LLM shim: embeddings delegate to Psyche's local model; completions go
-    through the claude CLI in headless mode on the user's subscription.
-    Sonnet over haiku: ~50 extractions/day at ~4k tokens is negligible plan
-    quota, and the quality gap shows up directly in fact selection."""
+    """Opt-in shim: embeddings stay local and completions use Claude CLI."""
     chat_model = "claude-sonnet-cli"
 
     def __init__(self, base_llm, cli_path):
@@ -60,6 +57,9 @@ def _resolve_llm():
     from llm_client import LLMClient
     llm = LLMClient()
     if getattr(llm, "chat_model", "none") != "none":
+        return llm
+    allow_claude_cli = os.getenv("PSYCHE_ALLOW_CLAUDE_CLI_EXTRACTION", "").strip().lower()
+    if allow_claude_cli not in {"1", "true", "yes", "on"}:
         return llm
     cli_path = shutil.which("claude") or "/opt/homebrew/bin/claude"
     if os.path.exists(cli_path):

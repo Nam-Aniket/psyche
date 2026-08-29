@@ -172,7 +172,7 @@
       h('canvas', { class: 'lh-hero-canvas', id: 'lh-hero-canvas', 'aria-hidden': 'true' }),
       h('main', { class: 'landing__main' },
         h('div', { class: 'hero' },
-          h('div', { class: 'eyebrow' }, h('span', { class: 'eyebrow__dot' }), 'Runs entirely on your machine'),
+          h('div', { class: 'eyebrow' }, h('span', { class: 'eyebrow__dot' }), 'Local by default · cloud providers optional'),
           (() => { const hh = h('h1'); hh.innerHTML = 'A private second brain<br>your <em>whole toolchain</em> can remember.'; return hh; })(),
           h('p', {}, 'Psyche turns your docs, books and notes into a private, searchable mind, and shares one cited memory across every AI coding agent you use.'),
           h('div', { class: 'cta-row' },
@@ -323,7 +323,7 @@
 
   // ── Setup ─────────────────────────────────────────────────────────────────
   const PATHS = [
-    { id: 'apikey', name: 'Gemini API key', tag: 'cloud chat', desc: 'Use a free Google Gemini key for in-app chat & fact extraction. Embeddings still run locally.', field: { label: 'Gemini API key', type: 'password', placeholder: 'AIza…  (free at aistudio.google.com)' }, chat_provider: 'gemini' },
+    { id: 'apikey', name: 'Gemini API key', tag: 'cloud chat', desc: 'Use Google Gemini for in-app chat and fact extraction. Embeddings still run locally; retrieved passages or transcript excerpts are sent to Google.', field: { label: 'Gemini API key', type: 'password', placeholder: 'AIza…  (from aistudio.google.com)' }, chat_provider: 'gemini' },
     { id: 'ollama', name: 'Local Ollama', tag: 'fully offline', desc: 'A local chat model plus local embeddings. $0, no network, nothing leaves your disk.', field: { label: 'model', type: 'text', placeholder: 'llama3' }, chat_provider: 'ollama' },
     { id: 'agent', name: 'Agent-only', tag: 'no chat model', desc: 'Skip the in-app chat model. Facts accumulate via your coding agent over MCP; search runs on local ONNX.', chat_provider: 'none' },
   ];
@@ -924,6 +924,16 @@
   let chatStreamEl = null, chatInputEl = null;
   const CHAT_SUGGESTIONS = ['What is in my library?', 'Summarize the key ideas.', 'What connects these concepts?'];
   const chatSynthesizes = () => activePathId() !== 'agent';  // a chat model is wired → written answers, not just passages
+  const chatProviderName = () => String((state.provider && state.provider.chat_provider) || 'none').toLowerCase();
+  const cloudChatProvider = () => ['gemini', 'openai'].includes(chatProviderName());
+  function chatDataNote() {
+    if (cloudChatProvider()) {
+      const label = chatProviderName() === 'gemini' ? 'Google Gemini' : 'OpenAI';
+      return `Indexing and retrieval stay local · retrieved passages are sent to ${label} for answer generation`;
+    }
+    if (chatProviderName() === 'ollama') return 'Indexing, retrieval, and answer generation stay on this machine';
+    return 'Indexing and retrieval stay on this machine';
+  }
   function buildChat() {
     const screen = h('div', { class: 'screen screen--flush' });
     screen.appendChild(h('div', { class: 'chat-head' }, h('div', { class: 'chat-narrow' }, h('div', { class: 'section__kicker' }, 'Ask'),
@@ -933,7 +943,7 @@
     chatInputEl = h('input', { placeholder: 'Ask anything about your documents…', 'aria-label': 'Ask a question about your documents', onKeydown: (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); } } });
     screen.appendChild(h('div', { class: 'chat-foot' }, h('div', { class: 'chat-narrow' },
       h('div', { class: 'chat-input-bar' }, chatInputEl, h('button', { class: 'chat-send', 'aria-label': 'Send message', onClick: () => sendChat() }, icon(ICONS.arrow, 19, 2.1))),
-      h('div', { class: 'chat-disclaimer' }, (chatSynthesizes() ? 'Answers' : 'Results') + ' are grounded only in your indexed sources · nothing leaves this machine'))));
+      h('div', { class: 'chat-disclaimer' }, chatDataNote()))));
     drawChat();
     return screen;
   }
@@ -943,8 +953,10 @@
       h('div', { class: 'chat-empty__mark' }),
       h('h2', {}, synth ? 'Ask your library anything' : 'Search your library'),
       h('p', {}, synth
-        ? 'Every answer is pulled straight from your indexed documents, with citations. Nothing leaves your machine.'
-        : 'Psyche finds the most relevant passages from your indexed documents, with citations. Wire a chat model in Setup for written answers — nothing leaves your machine either way.'),
+        ? (cloudChatProvider()
+          ? 'Psyche retrieves cited passages locally, then sends those passages to your selected cloud provider to write the answer.'
+          : 'Every answer is generated locally from your indexed documents, with citations.')
+        : 'Psyche finds the most relevant passages from your indexed documents locally, with citations. Wire a chat model in Setup if you also want written answers.'),
       h('div', { class: 'suggest-row' }, CHAT_SUGGESTIONS.map((t) => h('button', { class: 'btn btn--chip', onClick: () => sendChat(t) }, t))));
   }
   function drawChat() {

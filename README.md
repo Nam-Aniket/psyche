@@ -1,10 +1,11 @@
 # Psyche 🧠
 
 <div align="center">
-  <p><strong>A private second brain your whole AI toolchain can remember.</strong></p>
-  <p>Your books, notes and documents become a searchable, cited library. Your agents (Claude Code, Codex, Gemini, Antigravity) share one memory. Everything stays on your machine. Running it costs $0.</p>
+  <p><strong>One inspectable memory shared by your AI coding tools.</strong></p>
+  <p>Claude Code, Codex, Gemini and Antigravity can recall the same decisions, preferences and lessons. Indexing, retrieval and memory storage are local by default; cloud chat and extraction are explicit opt-ins.</p>
 
   [![Version](https://img.shields.io/badge/version-0.7.0-blueviolet.svg?style=for-the-badge)](https://github.com/Nam-Aniket/psyche)
+  [![CI](https://img.shields.io/github/actions/workflow/status/Nam-Aniket/psyche/ci.yml?branch=main&style=for-the-badge&label=tests)](https://github.com/Nam-Aniket/psyche/actions/workflows/ci.yml)
   [![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey.svg?style=for-the-badge)](https://github.com/Nam-Aniket/psyche)
   [![License](https://img.shields.io/badge/license-MIT-green.svg?style=for-the-badge)](https://github.com/Nam-Aniket/psyche)
   [![Model Context Protocol](https://img.shields.io/badge/MCP-Enabled-orange.svg?style=for-the-badge)](https://modelcontextprotocol.io)
@@ -24,28 +25,36 @@ And the knowledge you actually care about? The books you have read, the notes yo
 Two problems. One tool.
 
 1. **A knowledge layer.** Your PDFs, EPUBs, Obsidian vaults and docs become a hybrid-searchable library. Every answer carries a citation with source, author and page.
-2. **A memory layer.** Durable facts (preferences, decisions, lessons) are captured automatically and shared across every agent you use. State a preference in Codex and Claude Code knows it. Learn a lesson in Antigravity and it follows you everywhere.
+2. **A memory layer.** Durable facts (preferences, decisions, lessons) are shared across every connected agent. State a preference in Codex and Claude Code can retrieve it. Learn a lesson in Antigravity and it can follow you into the next session.
 
-Nothing is uploaded. There is no subscription. Memory costs you zero API calls.
+The default local path requires no subscription or API calls. If you choose Gemini or OpenAI for chat/extraction, Psyche clearly labels the text sent to that provider.
 
 ---
 
-## Try it in 60 seconds
+## Quick start
 
 ```bash
 git clone https://github.com/Nam-Aniket/psyche.git
 cd psyche
 ./setup.sh
-psyche web
+.venv/bin/psyche web
 ```
 
-That last command opens the app in your browser. On first launch it detects the AI agents on your machine (Claude Code, Codex, Gemini CLI, Antigravity) and wires them up automatically. Then:
+`./setup.sh` creates Psyche's isolated environment and configuration. It does **not** replace commands, edit AI client configs, install a background service, or add Git hooks. `.venv/bin/psyche web` opens the local app; its Setup tab detects supported agents and lets you connect each one explicitly. Then:
 
 1. **Drag your documents in.** Chunked, embedded and indexed locally in seconds.
 2. **Ask a question in Chat.** Get passages back with author and page citations.
 3. **Open a new agent session anywhere.** Your facts are already there.
 
-Prefer pip? `pipx install git+https://github.com/Nam-Aniket/psyche.git` gives you the same `psyche` CLI.
+Prefer pipx?
+
+```bash
+pipx install git+https://github.com/Nam-Aniket/psyche.git
+psyche setup
+psyche web
+```
+
+Before connecting an agent, preview every proposed file change with `.venv/bin/psyche connect --dry-run` (clone) or `psyche connect --dry-run` (pipx).
 
 ---
 
@@ -58,7 +67,7 @@ One command. No config files. No YAML.
 | **Setup** | Live connection status per agent. One click wires an agent's real config files, backed up first |
 | **Upload** | Drag-and-drop ingestion for PDF, EPUB, Markdown, DOCX, Org and TXT. Real titles and authors parsed from metadata |
 | **Graph** | A living concept map of your library. Click any node to read its definition and trace its connections |
-| **Chat** | Cited passages from your documents. Wire a chat model (free Gemini key or local Ollama) for written answers |
+| **Chat** | Cited passages from your documents. Wire Gemini or local Ollama for written answers |
 | **Coach** | Guidance briefs grounded in your books and your tracked goals, not generic advice |
 | **Memory** | Every fact your agents have saved. Filterable, topic-scoped, with an entity graph |
 
@@ -66,19 +75,19 @@ Topic libraries keep separate corpora separate: one for decision-making books, o
 
 ---
 
-## One memory. Every agent. $0.
+## One memory. Every agent. Local by default.
 
-Psyche's memory engine does what hosted memory services do (extraction, deduplication, hybrid retrieval, entity links) with one difference: it runs entirely on your machine and every agent shares it.
+Psyche keeps its database, indexes and retrieval pipeline on your machine while giving every connected agent access to the same store.
 
 | | Without Psyche | With Psyche |
 |---|---|---|
 | Session start | Agent rediscovers context from scratch | Standing facts injected automatically |
 | Each prompt | You re-explain, the agent re-reads | Only strongly matching facts injected, never noise |
-| Session end | Everything is forgotten | Durable facts extracted and stored, zero tokens billed |
-| Your data | Uploaded to a memory SaaS | Never leaves your disk |
+| Session end | Everything is forgotten | Durable facts can be extracted and stored |
+| Your data | Uploaded to a memory SaaS | Stored locally; remote models are optional and disclosed |
 | Across agents | Each tool keeps its own silo | One shared local store |
 
-Why it stays fast and free:
+Why the default local path stays fast:
 
 - **ADD-only writes with a cosine duplicate guard.** No LLM judging loop burning API calls per fact. Conflicts resolve at read time by recency.
 - **Similarity-gated injection.** A weak match injects nothing, and a session ledger guarantees no fact is injected twice. Memory that wastes tokens is not memory, it is noise.
@@ -89,7 +98,7 @@ Why it stays fast and free:
 
 | Agent | Integration | Files Psyche writes |
 |---|---|---|
-| **Claude Code** | Fully automatic lifecycle hooks: recall at session start and on every prompt, extraction at session end. Zero model overhead | `~/.claude/settings.json` |
+| **Claude Code** | Lifecycle hooks recall at session start and on prompts. Transcript extraction runs only when a chat/extraction provider is explicitly configured | `~/.claude/settings.json` |
 | **Codex** | MCP tools plus a memory-protocol block, with `notify` chained for auto-capture | `~/.codex/config.toml`, `~/.codex/AGENTS.md` |
 | **Gemini CLI / Antigravity** | Same hooks as Claude Code, plus the protocol block | `~/.gemini/settings.json`, `mcp_config.json`, `GEMINI.md` |
 | **Cursor / Claude Desktop** | MCP memory tools the model calls itself | `~/.cursor/mcp.json` / desktop config |
@@ -97,19 +106,22 @@ Why it stays fast and free:
 Every write is backed up once (`*.psyche-bak`) and idempotent: running connect twice changes nothing. Your existing hooks and MCP servers are always preserved.
 
 > [!NOTE]
-> Search and injection run on local ONNX embeddings out of the box. Automatic fact extraction from transcripts activates when a chat model is configured (`psyche setup`; a free Gemini key or local Ollama both work). Without one, facts still accumulate through the `add_memory` tool and everything else works identically.
+> Search and injection use local ONNX embeddings out of the box. Automatic fact extraction from transcripts activates when you explicitly configure a chat model (`psyche setup`; Gemini, OpenAI or local Ollama). Claude CLI extraction is disabled by default and can be opted into with `PSYCHE_ALLOW_CLAUDE_CLI_EXTRACTION=1`. Without an extractor, facts still accumulate through the `add_memory` tool.
 
 ---
 
-## Private by design
+## Local-first data flow
 
-Hosted RAG and memory tools share one fatal flaw: your diaries, books and half-formed thoughts end up on somebody else's server.
+Psyche never silently changes from a local path to a cloud path:
 
-Psyche is built so that cannot happen:
+| Configuration | What stays local | What leaves the machine |
+|---|---|---|
+| Local ONNX + no chat | Documents, chunks, embeddings, indexes, memories and retrieval | Nothing |
+| Local ONNX + Ollama | Everything | Nothing, assuming Ollama is running locally |
+| Gemini or OpenAI chat/extraction | Documents, indexes, memories and retrieval | Retrieved passages or transcript excerpts needed for the selected operation |
+| Claude CLI extraction opt-in | Documents, indexes, memories and retrieval | Transcript excerpts sent through the user's Claude CLI session |
 
-- **100% local indexing.** Parsing, chunking and embeddings all run on your machine (ONNX models or Ollama).
-- **No silent uploads.** The web app binds to `127.0.0.1`. Your documents never leave your disk.
-- **Strict citations.** Every result names its file, chapter or page. You can verify any claim in seconds.
+The web app binds to `127.0.0.1`. Every retrieval result names its source file, chapter or page so you can inspect what grounded it. The setup wizard also supports cloud embedding providers and labels those options as cloud processing.
 
 ---
 
@@ -231,12 +243,26 @@ Run `psyche build-graph` (or hit Rebuild in the Graph tab) to cluster your corpu
 git clone https://github.com/Nam-Aniket/psyche.git
 cd psyche
 ./setup.sh
-psyche web
+.venv/bin/psyche web
 ```
 
 ### Pipx
 ```bash
 pipx install git+https://github.com/Nam-Aniket/psyche.git
+psyche setup
+psyche web
+```
+
+### Optional host integrations
+
+The default installer changes no AI client configs, background services or Git hooks.
+
+```bash
+psyche connect --dry-run   # preview exact agent-config changes
+psyche connect             # connect detected agents after you approve
+psyche setup --watcher     # optional background ingestion service
+psyche setup --git-hook    # optional hook in this checkout
+./setup.sh --global-link   # optional ~/.local/bin/psyche link; never overwrites
 ```
 
 ### Manual MCP configuration (Claude Desktop example)

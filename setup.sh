@@ -1,3 +1,3 @@
 #!/bin/bash
 set -e
-python3 cli.py setup
+PSYCHE_BOOTSTRAP=1 python3 cli.py setup "$@"
